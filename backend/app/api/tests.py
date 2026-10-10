@@ -22,7 +22,7 @@ router = APIRouter(tags=["test-generation"])
 def _out(t: GeneratedTest, existing: str = "", meta: dict | None = None) -> dict:
     d = {"id": str(t.id), "project_id": str(t.project_id), "file_id": str(t.file_id) if t.file_id else None,
          "framework": t.framework, "test_path": t.test_path, "code": t.code, "description": t.description, "details": t.details,
-         "saved": t.saved, "executed": t.executed, "provider": t.provider, "model": t.model, "created_at": t.created_at,
+         "patch_id": str(t.patch_id) if t.patch_id else None, "saved": t.saved, "executed": t.executed, "provider": t.provider, "model": t.model, "created_at": t.created_at,
          "status_label": "Executed" if t.executed else "Generated, not executed",
          "diff": make_diff(existing, t.code, t.test_path)}
     if meta:

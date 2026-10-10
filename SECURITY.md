@@ -15,6 +15,9 @@ This project applies defence in depth but is **not claimed to be fully secure**.
 - **Static analysis**: fixed-argument subprocesses, no shell, scrubbed env, 15 s timeout, source parsed not executed.
 - **Errors/logging**: generic 500s, only exception type logged, bounded request size, CORS allow-list, `nosniff`/`no-store` headers.
 
+- **Account deletion & cleanup**: `DELETE /auth/me` requires the current password and cascades to all owned data. The operator cleanup script is dry-run by default, restricted to `@example.com` patterns and requires `--expect N`.
+- **Patch safety**: patches are stored with the original content and the SHA-256 of the file they were based on; applying a stale patch returns 409 and leaves the file untouched. Verification parses text and never executes code; test execution goes only through the isolated sandbox and is otherwise reported as not executed.
+
 ## Known limitations
 - Tokens live in `localStorage` (cross-origin Vercel↔Render setup); an XSS bug would expose them. Prefer same-site cookies if you host both under one domain.
 - Rate limiting is in-memory per process; use a shared store (Redis) when running multiple instances.

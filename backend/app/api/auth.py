@@ -9,7 +9,7 @@ from app.core.errors import AppError, Unauthorized
 from app.core.ratelimit import limiter
 from app.core.security import create_token, hash_password, hash_password_async, verify_password_async
 from app.models.models import User, UserSettings
-from app.schemas.common import LoginIn, RegisterIn, TokenOut, UserOut
+from app.schemas.common import DeleteAccountIn, LoginIn, RegisterIn, TokenOut, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _DUMMY = hash_password("not-a-real-password")  # constant-time-ish login for unknown emails
@@ -42,3 +42,14 @@ async def login(body: LoginIn, request: Request, db: AsyncSession = Depends(get_
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(current_user)):
     return user
+
+
+@router.delete("/me", status_code=204)
+async def delete_account(body: DeleteAccountIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Permanently deletes the account and everything it owns (projects, files, history, reports, chats, usage).
+    Requires the current password so a stolen token alone cannot wipe an account."""
+    limiter.check(f"auth-del:{user.id}", 5)
+    if not await verify_password_async(body.password, user.password_hash):
+        raise Unauthorized("Incorrect password.")
+    await db.delete(user)
+    await db.commit()

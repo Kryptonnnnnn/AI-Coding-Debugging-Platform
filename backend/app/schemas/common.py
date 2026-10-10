@@ -144,6 +144,7 @@ class DebugIn(BaseModel):
     actual: str = Field(default="", max_length=4000)
     repro_steps: str = Field(default="", max_length=4000)
     extra_file_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
+    include_related: bool = False  # also send files this file imports / is imported by (max 4)
     provider: str | None = None
     model: str | None = None
 
@@ -188,6 +189,7 @@ class PatchOut(ORM):
     base_sha256: str
     diff: str
     status: str
+    verification: dict = {}
     created_at: datetime
     resolved_at: datetime | None
     added: int = 0
@@ -260,3 +262,12 @@ class SettingsUpdate(BaseModel):
 class ExecuteIn(BaseModel):
     file_id: uuid.UUID
     kind: Literal["run", "test"] = "run"
+
+
+class DeleteAccountIn(BaseModel):
+    password: str = Field(max_length=128)
+
+
+class RetrieveIn(BaseModel):
+    question: str = Field(min_length=3, max_length=2000)
+    limit: int = Field(default=6, ge=1, le=12)

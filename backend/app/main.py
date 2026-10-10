@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import analysis, auth, chat, dashboard, debug, health, patches, projects, review, sandbox, settings, tests
+from app.api import analysis, auth, chat, dashboard, debug, health, intel, patches, projects, review, sandbox, settings, tests
 from app.core.config import get_settings
 from app.core.errors import install_handlers
 from app.core.ratelimit import limiter
@@ -62,7 +62,7 @@ def create_app() -> FastAPI:
                        allow_methods=["*"], allow_headers=["*"])
 
     for r in (health.router, auth.router, projects.router, analysis.router, debug.router, review.router, tests.router,
-              patches.router, chat.router, sandbox.router, dashboard.router, settings.router):
+              patches.router, intel.router, chat.router, sandbox.router, dashboard.router, settings.router):
         app.include_router(r, prefix="/api/v1")
     return app
 

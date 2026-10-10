@@ -20,6 +20,12 @@ Design principle: *deterministic tool findings and AI hypotheses are always labe
 
 Dark is the default theme; a light theme is one click away (`docs/screenshots/workspace-light.png`). Screenshots use the mock AI provider and a local test account.
 
+### Code intelligence & verification
+| | |
+|---|---|
+| ![Patch verification](docs/screenshots/patch-verification.png) | ![Review comparison](docs/screenshots/review-compare.png) |
+| ![Related files](docs/screenshots/related-files.png) | |
+
 ## Features
 Auth & per-user isolation · projects (create/rename/archive/delete/search/paginate) · file tree, upload files or ZIP · Monaco editor with resizable panels, dark/light themes · debugging tasks (debug, explain error, root cause, fix, alternatives, line-by-line, edge cases, readability, optimize, refactor, repro) · reports saved + Markdown export · code review (quick/standard/deep, file or project manifest) · pytest / Vitest / Jest test generation with diff preview and save-to-project · patch create/apply/reject with conflict detection · file version history & restore · streaming chat with explicit context selection, preview, secret warnings, rename/search/delete · static analysis & secret scan page · dashboard with real usage stats · provider/model settings · sandbox status & execution results · retention cleanup job.
 
@@ -99,6 +105,23 @@ backend/   app/{api,core,models,schemas,services,ai,debugging,code_review,static
 sandbox/   Dockerfile README.md
 docker-compose.yml  render.yaml  .env.example  SECURITY.md
 ```
+
+## Code intelligence (what it is and isn't)
+- **Import graph** (`GET /projects/{id}/graph`, `/files/{id}/related`): Python via `ast`, JavaScript/TypeScript via pattern matching. Reports internal imports, importers, external packages and circular imports. It is static import analysis, **not** a semantic call graph; dynamic imports and aliases are not followed. Other languages are reported as unsupported.
+- **Related-file context**: the Debug tab can include a file's direct imports/importers (max 4) as extra AI context; the report lists exactly which were sent.
+- **Question-relevant files** (`POST /projects/{id}/retrieve`): lexical ranking of paths, definitions and terms. It is not embeddings-based. It only *suggests* files; nothing is sent until you send your message.
+- **Review quality**: AI findings that restate a tool finding (same lines, same subject) are merged into the deterministic finding ("also reported by AI"); AI-vs-AI repeats are merged too. Reviews can be saved as **baselines** and compared by line-independent fingerprints (`GET /reviews/{a}/compare/{b}`); reports export to Markdown.
+- **Patch verification** (`POST /patches/{id}/verify`): before applying, the proposed code is parsed and run through Ruff/Bandit (Python) or `node --check` (JavaScript) and compared with the original (new vs. resolved findings). The project is not modified. Tests run only if the isolated sandbox is available and are otherwise reported as *not executed*; a pass is never assumed. Applying records a post-apply check and an audit trail (verified/applied/rejected/regression-tests events).
+- **Regression tests** (`POST /patches/{id}/regression-tests`): AI-suggested tests derived from the diff, saved as generated tests, labelled not executed.
+- **Project overview** (`GET /projects/{id}/overview`): language breakdown, most-edited files, latest review severities, import stats. All computed from stored data.
+
+## Account & data management
+- Self-service deletion: Settings → Delete account (`DELETE /api/v1/auth/me`, password required) removes the account and everything it owns.
+- Operators can list and remove throw-away accounts with `backend/scripts/cleanup_test_accounts.py` (dry-run by default; only `…@example.com` patterns; deletion needs `--delete --expect N` matching the dry-run count; prints no secrets). Run it from `backend/` with `DATABASE_URL` set in your shell:
+  ```bash
+  python -m scripts.cleanup_test_accounts                      # dry run
+  python -m scripts.cleanup_test_accounts --delete --expect 7  # delete exactly those 7
+  ```
 
 ## Known limitations
 - Static analysis is real only for Python (ast, Ruff, Bandit) and JavaScript syntax (`node --check`); TypeScript and other languages get AI analysis only and are labelled "skipped/unavailable".

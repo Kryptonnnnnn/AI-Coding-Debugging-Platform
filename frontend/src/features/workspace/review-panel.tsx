@@ -2,6 +2,7 @@
 import { SearchCheck } from "lucide-react";
 import { useState } from "react";
 import { Button, EmptyState, Label, Select, ListSkeleton } from "@/components/ui";
+import { ReviewActions } from "@/features/review-actions";
 import { ReviewView } from "@/features/review-view";
 import { post } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -30,7 +31,7 @@ export function ReviewPanel({ ctx }: { ctx: WorkspaceCtx }) {
       </div>
       <Button className="mt-2 w-full" onClick={run} loading={busy} disabled={scope === "file" && !ctx.file}><SearchCheck className="h-4 w-4" /> Run review</Button>
       <p className="mt-1 text-xs text-muted-foreground">Project reviews skip secrets/dependency folders and cap the number of files by depth. Reviews are not exhaustive.</p>
-      <div className="mt-4 border-t pt-3">{busy ? <ListSkeleton rows={3} /> : review ? <ReviewView review={review} /> : <EmptyState title="No review yet" />}</div>
+      <div className="mt-4 border-t pt-3">{busy ? <ListSkeleton rows={3} /> : review ? <><div className="mb-3 flex flex-wrap gap-1.5"><ReviewActions review={review} projectId={ctx.projectId} onChanged={setReview} /></div><ReviewView review={review} /></> : <EmptyState title="No review yet" />}</div>
     </div>
   );
 }

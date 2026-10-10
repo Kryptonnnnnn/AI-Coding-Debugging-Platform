@@ -1,5 +1,5 @@
 "use client";
-import { Bot, Bug, ChevronDown, FlaskConical, History, PanelBottom, PanelLeft, PanelRight, Save, Search, SearchCheck, ShieldCheck, Terminal, X } from "lucide-react";
+import { BarChart3, Bot, Bug, ChevronDown, GitFork, FlaskConical, History, PanelBottom, PanelLeft, PanelRight, Save, Search, SearchCheck, ShieldCheck, Terminal, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShell } from "@/components/shell-context";
@@ -11,6 +11,8 @@ import { ChatPanel } from "@/features/workspace/chat-panel";
 import { DebugPanel } from "@/features/workspace/debug-panel";
 import { FileTree } from "@/features/workspace/file-tree";
 import { HistoryPanel } from "@/features/workspace/history-panel";
+import { OverviewPanel } from "@/features/workspace/overview-panel";
+import { RelatedPanel } from "@/features/workspace/related-panel";
 import { ReviewPanel } from "@/features/workspace/review-panel";
 import { RunPanel } from "@/features/workspace/run-panel";
 import { TestsPanel } from "@/features/workspace/tests-panel";
@@ -30,6 +32,8 @@ const ASSISTANT_TABS: { id: AssistantTab; label: string; icon: React.ReactNode }
 ];
 const BOTTOM_TABS: { id: BottomTab; label: string; icon: React.ReactNode }[] = [
   { id: "analysis", label: "Analysis", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
+  { id: "related", label: "Related", icon: <GitFork className="h-3.5 w-3.5" /> },
+  { id: "overview", label: "Overview", icon: <BarChart3 className="h-3.5 w-3.5" /> },
   { id: "history", label: "History", icon: <History className="h-3.5 w-3.5" /> },
   { id: "output", label: "Output", icon: <Terminal className="h-3.5 w-3.5" /> },
 ];
@@ -285,6 +289,8 @@ export default function WorkspacePage() {
       </div>
       <div className="min-h-0 flex-1">
         {bTab === "analysis" && <AnalysisPanel ctx={ctx} />}
+        {bTab === "related" && <RelatedPanel ctx={ctx} />}
+        {bTab === "overview" && <OverviewPanel ctx={ctx} />}
         {bTab === "history" && <HistoryPanel ctx={ctx} />}
         {bTab === "output" && <RunPanel ctx={ctx} />}
       </div>

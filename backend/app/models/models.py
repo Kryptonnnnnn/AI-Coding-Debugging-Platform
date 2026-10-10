@@ -143,6 +143,8 @@ class CodeReview(Base):
     scope: Mapped[list] = mapped_column(JSON, default=list)  # file paths reviewed
     summary: Mapped[str] = mapped_column(Text, default="")
     limitations: Mapped[list] = mapped_column(JSON, default=list)
+    is_baseline: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    label: Mapped[str] = mapped_column(String(120), default="", server_default="")
     provider: Mapped[str] = mapped_column(String(20))
     model: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[datetime] = _ts()
@@ -165,6 +167,8 @@ class CodeReviewFinding(Base):
     source: Mapped[str] = mapped_column(String(10), default="ai")  # ai | tool
     tool_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     rule_id: Mapped[str] = mapped_column(String(60), default="")
+    fingerprint: Mapped[str] = mapped_column(String(40), default="", server_default="", index=True)
+    merged_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # duplicate findings folded into this one
 
 
 class GeneratedTest(Base):
@@ -173,6 +177,7 @@ class GeneratedTest(Base):
     user_id: Mapped[uuid.UUID] = _fk("users")
     project_id: Mapped[uuid.UUID | None] = _fk("projects", nullable=True)
     file_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    patch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)  # set for regression tests suggested from a patch
     framework: Mapped[str] = mapped_column(String(20))
     test_path: Mapped[str] = mapped_column(String(500))
     code: Mapped[str] = mapped_column(Text)
@@ -199,6 +204,7 @@ class CodePatch(Base):
     proposed_content: Mapped[str] = mapped_column(Text)
     diff: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(12), default="proposed")  # proposed|applied|rejected
+    verification: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")  # deterministic check results + audit events
     created_at: Mapped[datetime] = _ts()
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

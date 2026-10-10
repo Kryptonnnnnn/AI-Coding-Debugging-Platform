@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import current_user, owned_file, owned_project
 from app.core.db import get_db
 from app.core.errors import AppError, NotFound
+from app.code_intel.graph import build_graph, related
 from app.debugging.service import run_debug
 from app.models.models import CodePatch, CodeSession, DebuggingReport, ProjectFile, User
 from app.patching.engine import diff_stats
@@ -34,8 +35,20 @@ async def debug(body: DebugIn, user: User = Depends(current_user), db: AsyncSess
     if body.extra_file_ids:
         extras = (await db.scalars(select(ProjectFile).where(ProjectFile.project_id == body.project_id,
                                                              ProjectFile.id.in_(body.extra_file_ids)))).all()
+    extras = list(extras)
+    related_info: list[dict] = []
+    if body.include_related and target:
+        allf = (await db.scalars(select(ProjectFile).where(ProjectFile.project_id == body.project_id))).all()
+        graph = build_graph([(f.path, f.language, f.content) for f in allf])
+        have = {e.path for e in extras} | {target.path}
+        by_path = {f.path: f for f in allf}
+        for r in related(graph, target.path, limit=4):
+            if r["path"] not in have and r["path"] in by_path:
+                extras.append(by_path[r["path"]])
+                related_info.append(r)
     provider = await resolve_provider(db, user, body.provider, body.model)
-    rec, patch, meta = await run_debug(db, user, provider, body, target, list(extras))
+    rec, patch, meta = await run_debug(db, user, provider, body, target, extras)
+    meta["related_files"] = related_info
     await db.commit()
     out = _report_out(rec)
     out["meta"] = meta
