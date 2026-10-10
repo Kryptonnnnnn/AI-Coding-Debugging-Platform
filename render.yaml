@@ -1,5 +1,5 @@
-# Render Blueprint: backend web service + free PostgreSQL.
-# NOTE: Render's free Postgres expires after 30 days; use Neon/Supabase for a permanent free DB (see README).
+# Render Blueprint: backend web service only. The database lives on Neon (Render's free Postgres expires after 30 days).
+# Values marked `sync: false` are entered once in the Render dashboard and never stored in Git.
 services:
   - type: web
     name: aicp-api
@@ -7,7 +7,8 @@ services:
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # --proxy-headers: Render terminates TLS, so trust X-Forwarded-For to rate-limit real client IPs.
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips "*"
     healthCheckPath: /api/v1/health
     envVars:
       - key: ENVIRONMENT
@@ -17,15 +18,12 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        fromDatabase: { name: aicp-db, property: connectionString }
+        sync: false          # Neon connection string
+      - key: CORS_ORIGINS
+        sync: false          # exact Vercel origin, e.g. https://your-app.vercel.app (no trailing slash)
       - key: AI_PROVIDER
-        value: mock            # switch to groq after adding GROQ_API_KEY
+        value: groq
       - key: GROQ_API_KEY
         sync: false
-      - key: CORS_ORIGINS
-        sync: false            # set to your Vercel URL
       - key: EXECUTION_ENABLED
         value: "false"
-databases:
-  - name: aicp-db
-    plan: free

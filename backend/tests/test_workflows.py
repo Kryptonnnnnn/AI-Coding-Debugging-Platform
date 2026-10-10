@@ -529,3 +529,34 @@ async def test_retention_purges_only_old_reports_for_opted_in_users(client, auth
     assert (await client.get("/reports", headers=auth)).json()["total"] == 1
     async with get_sessionmaker()() as db:
         assert len((await db.scalars(select(ProjectFile))).all()) == 1  # source files untouched
+
+
+def test_production_refuses_unsafe_config(monkeypatch):
+    from app.core import config
+    base = {"ENVIRONMENT": "production", "SECRET_KEY": "x" * 40, "DATABASE_URL": "postgresql://u:p@h/db",
+            "CORS_ORIGINS": "https://app.example.com", "EXECUTION_ENABLED": "false"}
+    def load(**over):
+        for k, v in {**base, **over}.items():
+            monkeypatch.setenv(k, v)
+        config.get_settings.cache_clear()
+        try:
+            return config.get_settings()
+        finally:
+            config.get_settings.cache_clear()
+    assert load().is_production
+    for bad in ({"SECRET_KEY": "short"}, {"SECRET_KEY": "dev-only-change-me-dev-only-change-me"}, {"DATABASE_URL": "sqlite+aiosqlite:///x.db"},
+                {"CORS_ORIGINS": "*"}, {"EXECUTION_ENABLED": "true"}):
+        with pytest.raises(RuntimeError):
+            load(**bad)
+
+
+async def test_mock_provider_refused_in_production(monkeypatch):
+    from app.ai import factory
+    from app.core.config import get_settings
+    from app.core.errors import AppError
+    monkeypatch.setattr(get_settings(), "environment", "production")
+    with pytest.raises(AppError) as e:
+        factory.get_provider("mock")
+    assert e.value.code == "provider_not_configured"
+    monkeypatch.setattr(get_settings(), "allow_mock_provider", True)
+    assert factory.get_provider("mock").name == "mock"

@@ -4,7 +4,7 @@ from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import get_settings
-from app.core.db import Base, normalize_url
+from app.core.db import Base, engine_args, normalize_url
 import app.models  # noqa: F401
 
 target_metadata = Base.metadata
@@ -27,7 +27,9 @@ def _do(conn) -> None:
 
 
 async def run_online() -> None:
-    engine = create_async_engine(_url())
+    url, kwargs = engine_args(get_settings().database_url)
+    kwargs.pop("pool_size", None), kwargs.pop("max_overflow", None)
+    engine = create_async_engine(url, **kwargs)
     async with engine.connect() as conn:
         await conn.run_sync(_do)
     await engine.dispose()

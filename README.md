@@ -61,14 +61,28 @@ cd frontend && npx playwright install chromium && npm run test:e2e   # 3 passed 
 Backend tests also pass against PostgreSQL: `TEST_DATABASE_URL=postgresql://... pytest -q`. Migrations were verified on Postgres 14 and 16 and SQLite (upgrade → downgrade → upgrade).
 E2E expects the backend on :8000 with `AI_PROVIDER=mock`, `EXECUTION_ENABLED=false`, and the frontend on :3000.
 
-## Deployment (not yet deployed; nothing here has been verified on the hosts)
-Quotas verified from Render docs ([render.com/docs/free](https://render.com/docs/free)): free web services spin down after 15 min idle (~1 min cold start); free Postgres is 1 GB and **expires after 30 days**, so use a permanent free Postgres such as Neon or Supabase for the long term.
+## Deployment (Neon + Render + Vercel, all free tiers)
+Free-tier facts (verify on the provider pages, they change): Render free web services sleep after 15 min idle (~1 min cold start); Render's own free Postgres expires after 30 days, so this project uses **Neon** for the database ([Render docs](https://render.com/docs/free)).
 
-1. **Database**: create a Neon/Supabase project, copy the connection string (`postgresql://…`; `sslmode=require` is fine—the app rewrites the driver to asyncpg; if the host needs SSL params, append `?ssl=require`).
-2. **Backend (Render)**: New → Blueprint → select this repo (`render.yaml`), or create a Web Service with root `backend`, build `pip install -r requirements.txt`, start `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT`. Set `ENVIRONMENT=production`, `SECRET_KEY` (random), `DATABASE_URL`, `CORS_ORIGINS=https://<your-app>.vercel.app`, `AI_PROVIDER`, `GROQ_API_KEY` if used, and keep `EXECUTION_ENABLED=false`.
-3. **Frontend (Vercel)**: import the repo, Root Directory `frontend`, env `NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com`. Redeploy, then update `CORS_ORIGINS`.
-4. **Verify**: `/api/v1/ready` returns `ready`; register in the UI; run a debug request.
-Execution stays disabled in production: free hosts cannot provide safe isolation. To add it later, deploy a separate hardened runner implementing `SandboxProvider`.
+**1. Database (Neon)** – create a project, copy the *pooled* connection string (`postgresql://…-pooler…/db?sslmode=require`). The app converts `sslmode`/`channel_binding` for asyncpg and disables prepared-statement caching for pooler hosts automatically.
+
+**2. Backend (Render)** – New → Blueprint → pick this repo (`render.yaml`). When prompted, set:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | Neon connection string |
+| `CORS_ORIGINS` | your exact Vercel origin, e.g. `https://my-app.vercel.app` |
+| `GROQ_API_KEY` | key from console.groq.com |
+| `SECRET_KEY` | generated automatically by the blueprint |
+| `AI_PROVIDER` / `EXECUTION_ENABLED` / `ENVIRONMENT` | `groq` / `false` / `production` (preset) |
+
+Start command (preset): `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips "*"`. Migrations run on every start and are idempotent. Production refuses to boot with a weak `SECRET_KEY`, SQLite, wildcard CORS, or execution enabled, and refuses the mock AI provider unless `ALLOW_MOCK_PROVIDER=true`.
+
+**3. Frontend (Vercel)** – import the repo, Root Directory `frontend`, env `NEXT_PUBLIC_API_URL=https://<service>.onrender.com` (public, not secret; baked in at build time). Then set `CORS_ORIGINS` on Render to the final Vercel origin and redeploy if needed.
+
+**4. Verify** – `curl https://<service>.onrender.com/api/v1/ready` → `{"status":"ready","database":true,...}`; register in the UI; in Settings acknowledge the external-AI notice; run a debug request.
+
+Execution stays disabled in production: free hosts cannot provide safe isolation. Add it later via a separate hardened runner implementing `SandboxProvider`.
 
 ## Layout
 ```

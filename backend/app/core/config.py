@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     auth_rate_limit_per_minute: int = 10
 
     # Sandbox (execution is OFF unless explicitly enabled AND Docker is usable)
+    allow_mock_provider: bool = False  # in production the mock must be explicitly allowed (it returns canned output)
     execution_enabled: bool = False
     sandbox_image: str = "aicp-sandbox:latest"
     sandbox_timeout_seconds: int = 10
@@ -62,6 +63,13 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
-    if s.is_production and s.secret_key.startswith("dev-only"):
-        raise RuntimeError("SECRET_KEY must be set in production")
+    if s.is_production:
+        if s.secret_key.startswith("dev-only") or len(s.secret_key) < 32:
+            raise RuntimeError("SECRET_KEY must be set to a random value of at least 32 characters in production")
+        if s.database_url.startswith("sqlite"):
+            raise RuntimeError("DATABASE_URL must point to PostgreSQL in production (local disk is ephemeral)")
+        if "*" in s.cors_origin_list or not s.cors_origin_list:
+            raise RuntimeError("CORS_ORIGINS must list the exact frontend origin(s) in production")
+        if s.execution_enabled:
+            raise RuntimeError("EXECUTION_ENABLED must be false in production unless an isolated sandbox service is configured")
     return s

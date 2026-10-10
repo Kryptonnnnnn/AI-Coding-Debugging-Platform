@@ -32,6 +32,9 @@ def get_provider(provider: str | None = None, model: str | None = None) -> AIPro
         return GroqProvider(s.groq_api_key, model, s.groq_base_url, s.ai_timeout_seconds)
     if provider == "ollama":
         return OllamaProvider(s.ollama_base_url, model, s.ai_timeout_seconds)
+    if s.is_production and not s.allow_mock_provider:
+        raise AppError("The mock AI provider is disabled in production. Configure AI_PROVIDER=groq with GROQ_API_KEY.",
+                       status_code=503, code="provider_not_configured")
     return MockProvider()
 
 
