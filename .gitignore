@@ -1,0 +1,29 @@
+# secrets & env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.dev.vars
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.db
+*.sqlite3
+# node
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+# misc
+.DS_Store
+.vercel
+*.log
+playwright-report/
+test-results/

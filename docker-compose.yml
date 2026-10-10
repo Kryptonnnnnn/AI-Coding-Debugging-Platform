@@ -1,0 +1,41 @@
+# Local development stack.
+#   docker compose up -d db                 # just PostgreSQL (run API/frontend natively)
+#   docker compose up --build api           # PostgreSQL + API
+#   docker compose --profile sandbox build sandbox-image   # build the execution sandbox image
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aicp
+      POSTGRES_PASSWORD: aicp
+      POSTGRES_DB: aicp
+    ports: ["${DB_PORT:-5432}:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aicp"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://aicp:aicp@db:5432/aicp
+      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-dev-only-change-me}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      EXECUTION_ENABLED: "false"   # the API container never gets the Docker socket
+    ports: ["8000:8000"]
+
+  # Builds the throw-away image used for sandboxed execution. Not a long-running service.
+  sandbox-image:
+    profiles: ["sandbox"]
+    build: ./sandbox
+    image: aicp-sandbox:latest
+    entrypoint: ["true"]
+
+volumes:
+  pgdata:
