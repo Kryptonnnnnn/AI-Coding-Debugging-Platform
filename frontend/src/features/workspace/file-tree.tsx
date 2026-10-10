@@ -1,7 +1,7 @@
 "use client";
-import { ChevronDown, ChevronRight, FilePlus2, FileText, Folder, Pencil, Search, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, Database, FileCode2, FileJson, FilePlus2, FileText, Folder, FolderOpen, Pencil, Search, Terminal, Trash2, Upload } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { Button, Dialog, Input, Label } from "@/components/ui";
+import { Button, Dialog, Input, Label, Tooltip, useConfirm } from "@/components/ui";
 import { api, del, get, put, post } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { cn, formatBytes } from "@/lib/utils";
@@ -24,6 +24,17 @@ function build(files: FileMeta[]): Node {
   return root;
 }
 
+const EXT_ICON: Record<string, { icon: typeof FileText; cls: string }> = {
+  py: { icon: FileCode2, cls: "text-accent" }, js: { icon: FileCode2, cls: "text-warn" }, jsx: { icon: FileCode2, cls: "text-warn" },
+  ts: { icon: FileCode2, cls: "text-primary" }, tsx: { icon: FileCode2, cls: "text-primary" }, java: { icon: FileCode2, cls: "text-danger" },
+  go: { icon: FileCode2, cls: "text-accent" }, c: { icon: FileCode2, cls: "text-muted-foreground" }, cpp: { icon: FileCode2, cls: "text-muted-foreground" },
+  json: { icon: FileJson, cls: "text-warn" }, sql: { icon: Database, cls: "text-ok" }, sh: { icon: Terminal, cls: "text-ok" },
+};
+function FileIcon({ name }: { name: string }) {
+  const m = EXT_ICON[name.split(".").pop()?.toLowerCase() ?? ""] ?? { icon: FileText, cls: "text-muted-foreground" };
+  return <m.icon className={`h-3.5 w-3.5 shrink-0 ${m.cls}`} aria-hidden />;
+}
+
 function Row({ node, depth, activeId, onOpen, collapsed, toggle }: { node: Node; depth: number; activeId: string | null; onOpen: (id: string) => void; collapsed: Set<string>; toggle: (p: string) => void }) {
   const items = [...node.children.values()].sort((a, b) => Number(!!a.file) - Number(!!b.file) || a.name.localeCompare(b.name));
   return (
@@ -34,13 +45,12 @@ function Row({ node, depth, activeId, onOpen, collapsed, toggle }: { node: Node;
         return (
           <li key={n.path} role="treeitem" aria-expanded={isFile ? undefined : open} aria-selected={isFile ? n.file!.id === activeId : undefined}>
             <button
-              className={cn("flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-sm hover:bg-muted", isFile && n.file!.id === activeId && "bg-primary/10 font-medium text-primary")}
+              className={cn("flex w-full items-center gap-1.5 rounded px-1.5 py-[3px] text-left text-[13px] hover:bg-muted", isFile && n.file!.id === activeId && "bg-primary/15 font-medium text-foreground")}
               style={{ paddingLeft: 6 + depth * 12 }}
               onClick={() => (isFile ? onOpen(n.file!.id) : toggle(n.path))}
               title={n.path}
             >
-              {isFile ? <FileText className="h-3.5 w-3.5 shrink-0" /> : open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-              {!isFile && <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+              {isFile ? <FileIcon name={n.name} /> : (<>{open ? <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />}{open ? <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary/80" /> : <Folder className="h-3.5 w-3.5 shrink-0 text-primary/80" />}</>)}
               <span className="truncate">{n.name}</span>
             </button>
             {!isFile && open && <Row node={n} depth={depth + 1} activeId={activeId} onOpen={onOpen} collapsed={collapsed} toggle={toggle} />}
@@ -51,8 +61,9 @@ function Row({ node, depth, activeId, onOpen, collapsed, toggle }: { node: Node;
   );
 }
 
-export function FileTree({ projectId, files, activeId, onOpen, onChanged }: { projectId: string; files: FileMeta[]; activeId: string | null; onOpen: (id: string) => void; onChanged: (opts?: { deletedId?: string; openId?: string }) => void }) {
+export function FileTree({ projectId, files, activeId, onOpen, onChanged, highlightUpload }: {highlightUpload?: boolean;  projectId: string; files: FileMeta[]; activeId: string | null; onOpen: (id: string) => void; onChanged: (opts?: { deletedId?: string; openId?: string }) => void }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<{ file_id: string; path: string; line: number; text: string }[] | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -77,7 +88,7 @@ export function FileTree({ projectId, files, activeId, onOpen, onChanged }: { pr
     } catch (err) { toast.error(err); }
   }
   async function remove() {
-    if (!active || !window.confirm(`Delete ${active.path}? Its version history is deleted too.`)) return;
+    if (!active || !(await confirm({ title: `Delete ${active.path}?`, tone: "danger", confirmLabel: "Delete file", body: "The file and its version history are deleted permanently." }))) return;
     try { await del(`/projects/${projectId}/files/${active.id}`); toast.ok("File deleted"); onChanged({ deletedId: active.id }); } catch (e) { toast.error(e); }
   }
   async function upload(list: FileList | null) {
@@ -98,16 +109,17 @@ export function FileTree({ projectId, files, activeId, onOpen, onChanged }: { pr
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-1 border-b p-2">
-        <Button size="icon" variant="ghost" aria-label="New file" title="New file" onClick={() => { setPath(""); setDialog("new"); }}><FilePlus2 className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" aria-label="Upload files or ZIP" title="Upload files or ZIP" onClick={() => fileInput.current?.click()}><Upload className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" aria-label="Rename file" title="Rename file" disabled={!active} onClick={() => { setPath(active!.path); setDialog("rename"); }}><Pencil className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" aria-label="Delete file" title="Delete file" disabled={!active} onClick={remove}><Trash2 className="h-4 w-4" /></Button>
+      <div className="flex items-center gap-0.5 border-b px-2 py-1.5">
+        <span className="mr-auto pl-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground">Explorer</span>
+        <Tooltip label="New file"><Button size="icon" variant="ghost" aria-label="New file" onClick={() => { setPath(""); setDialog("new"); }}><FilePlus2 className="h-3.5 w-3.5" /></Button></Tooltip>
+        <Tooltip label="Upload files or ZIP"><Button size="icon" variant={highlightUpload ? "primary" : "ghost"} aria-label="Upload files or ZIP" onClick={() => fileInput.current?.click()}><Upload className="h-3.5 w-3.5" /></Button></Tooltip>
+        <Tooltip label="Rename file"><Button size="icon" variant="ghost" aria-label="Rename file" disabled={!active} onClick={() => { setPath(active!.path); setDialog("rename"); }}><Pencil className="h-3.5 w-3.5" /></Button></Tooltip>
+        <Tooltip label="Delete file"><Button size="icon" variant="ghost" aria-label="Delete file" disabled={!active} onClick={remove}><Trash2 className="h-3.5 w-3.5" /></Button></Tooltip>
         <input ref={fileInput} type="file" multiple className="hidden" aria-label="Upload input" accept=".zip,.py,.js,.jsx,.ts,.tsx,.java,.c,.h,.cpp,.cc,.hpp,.go,.sql,.json,.md,.txt,.yml,.yaml,.html,.css,.sh,.toml" onChange={(e) => upload(e.target.files)} />
       </div>
       <div className="flex gap-1 border-b p-2">
-        <Input aria-label="Filter files" placeholder="Filter files…" value={q} onChange={(e) => { setQ(e.target.value); setHits(null); }} onKeyDown={(e) => e.key === "Enter" && searchContent()} className="h-8" />
-        <Button size="icon" variant="outline" aria-label="Search inside files" title="Search inside files (Enter)" onClick={searchContent} disabled={q.trim().length < 2}><Search className="h-4 w-4" /></Button>
+        <Input aria-label="Filter files" placeholder="Filter files…" value={q} onChange={(e) => { setQ(e.target.value); setHits(null); }} onKeyDown={(e) => e.key === "Enter" && searchContent()} className="h-7" />
+        <Tooltip label="Search inside files (Enter)"><Button size="icon" variant="outline" aria-label="Search inside files" onClick={searchContent} disabled={q.trim().length < 2}><Search className="h-3.5 w-3.5" /></Button></Tooltip>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-1">
         {hits ? (
@@ -118,7 +130,7 @@ export function FileTree({ projectId, files, activeId, onOpen, onChanged }: { pr
             ))}
           </div>
         ) : files.length === 0 ? (
-          <p className="p-3 text-xs text-muted-foreground">No files yet. Create one, or upload source files or a ZIP.</p>
+          <div className="p-4 text-center text-xs text-muted-foreground"><p className="mb-1 font-medium text-foreground">No files yet</p>Create a file with <b>+</b>, or upload source files or a ZIP.</div>
         ) : filtered.length === 0 ? <p className="p-3 text-xs text-muted-foreground">No files match.</p> : (
           <Row node={tree} depth={0} activeId={activeId} onOpen={onOpen} collapsed={collapsed} toggle={(p) => setCollapsed((s) => { const n = new Set(s); n.has(p) ? n.delete(p) : n.add(p); return n; })} />
         )}

@@ -571,3 +571,20 @@ def test_database_url_with_wrong_scheme_gives_clear_error(monkeypatch):
             config.get_settings()
     finally:
         config.get_settings.cache_clear()
+
+
+async def test_error_responses_keep_cors_headers(client):
+    """A 500 without CORS headers shows up in browsers as a misleading 'network error'."""
+    from app.main import create_app
+    from app.core.config import get_settings
+    app = create_app()
+
+    @app.get("/boom")
+    async def _b():
+        raise RuntimeError("secret")
+    origin = get_settings().cors_origin_list[0]
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app, raise_app_exceptions=False), base_url="http://t") as c:
+        r = await c.get("/boom", headers={"Origin": origin})
+        assert r.status_code == 500 and r.headers.get("access-control-allow-origin") == origin and "secret" not in r.text
+        r = await c.get("/api/v1/projects", headers={"Origin": origin})  # 401 path too
+        assert r.status_code == 401 and r.headers.get("access-control-allow-origin") == origin

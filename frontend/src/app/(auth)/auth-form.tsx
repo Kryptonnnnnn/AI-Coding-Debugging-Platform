@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Braces } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 
@@ -33,8 +34,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm p-6">
-        <h1 className="mb-4 text-xl font-semibold">{mode === "login" ? "Log in" : "Create your account"}</h1>
+      <Card className="w-full max-w-sm p-6 shadow-pop">
+        <div className="mb-5 flex items-center gap-2.5"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Braces className="h-4 w-4" /></span><div><h1 className="text-base font-semibold leading-tight">{mode === "login" ? "Log in" : "Create your account"}</h1><p className="text-2xs text-muted-foreground">AI Coding &amp; Debugging</p></div></div>
         <form onSubmit={submit} className="space-y-3">
           {mode === "register" && (
             <div><Label htmlFor="name">Display name</Label><Input id="name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></div>

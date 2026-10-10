@@ -36,9 +36,6 @@ def create_app() -> FastAPI:
     app = FastAPI(title=s.app_name, version="1.0.0", lifespan=lifespan,
                   description="AI coding & debugging platform API. AI output is advisory; tool findings are deterministic.")
     install_handlers(app)
-    app.add_middleware(CORSMiddleware, allow_origins=s.cors_origin_list, allow_credentials=False,
-                       allow_methods=["*"], allow_headers=["*"])
-
     @app.middleware("http")
     async def guard(request: Request, call_next):
         cl = request.headers.get("content-length")
@@ -51,10 +48,18 @@ def create_app() -> FastAPI:
             except Exception:
                 return JSONResponse({"error": {"code": "rate_limited", "message": "Too many requests."}}, status_code=429,
                                     headers={"Retry-After": "30"})
-        resp = await call_next(request)
+        try:
+            resp = await call_next(request)
+        except Exception as e:  # noqa: BLE001 - keep CORS headers on 500s so browsers show the real error
+            logging.getLogger("app").error("unhandled error: %s", type(e).__name__)
+            return JSONResponse({"error": {"code": "internal_error", "message": "Internal server error"}}, status_code=500)
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["Cache-Control"] = "no-store"
         return resp
+
+    # Added last = outermost: CORS headers are applied to every response, including errors.
+    app.add_middleware(CORSMiddleware, allow_origins=s.cors_origin_list, allow_credentials=False,
+                       allow_methods=["*"], allow_headers=["*"])
 
     for r in (health.router, auth.router, projects.router, analysis.router, debug.router, review.router, tests.router,
               patches.router, chat.router, sandbox.router, dashboard.router, settings.router):

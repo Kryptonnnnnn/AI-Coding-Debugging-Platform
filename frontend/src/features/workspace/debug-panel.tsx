@@ -1,7 +1,7 @@
 "use client";
 import { Bug } from "lucide-react";
 import { useState } from "react";
-import { Button, EmptyState, Label, Select, Spinner, Textarea } from "@/components/ui";
+import { Button, EmptyState, Label, ListSkeleton, Select, Textarea } from "@/components/ui";
 import { DebugReportView } from "@/features/debug-report-view";
 import { post } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -33,10 +33,10 @@ export function DebugPanel({ ctx }: { ctx: WorkspaceCtx }) {
     } catch (e) { toast.error(e); } finally { setBusy(false); }
   }
 
-  if (!ctx.file) return <EmptyState title="Open a file to debug" hint="Select a file in the explorer first." />;
+  if (!ctx.file) return <EmptyState icon={<Bug className="h-4 w-4" />} title="Open a file to debug" hint="Select a file in the explorer first." />;
   return (
     <div className="h-full overflow-auto p-3">
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <div><Label htmlFor="task">Action</Label><Select id="task" value={task} onChange={(e) => setTask(e.target.value)}>{TASKS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></div>
         <div><Label htmlFor="err">Error message</Label><Textarea id="err" rows={2} value={error} onChange={(e) => setError(e.target.value)} placeholder="ZeroDivisionError: division by zero" /></div>
         <div><Label htmlFor="trace">Stack trace (optional)</Label><Textarea id="trace" rows={3} className="font-mono text-xs" value={trace} onChange={(e) => setTrace(e.target.value)} /></div>
@@ -47,7 +47,7 @@ export function DebugPanel({ ctx }: { ctx: WorkspaceCtx }) {
         <Button onClick={run} loading={busy} className="w-full"><Bug className="h-4 w-4" /> Analyze {ctx.file.path}</Button>
         <p className="text-xs text-muted-foreground">Sends this file (secrets redacted) and the details above to the configured AI provider. Nothing is changed until you apply a patch.</p>
       </div>
-      <div className="mt-4 border-t pt-3">{busy ? <Spinner label="Analyzing" /> : result ? <DebugReportView data={result} onOpenPatch={ctx.openPatch} /> : null}</div>
+      <div className="mt-4 border-t pt-3">{busy ? <ListSkeleton rows={3} /> : result ? <DebugReportView data={result} filePath={ctx.file.path} onPatchChanged={() => void ctx.reloadActive()} /> : null}</div>
     </div>
   );
 }

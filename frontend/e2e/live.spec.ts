@@ -9,7 +9,7 @@ test("live deployment smoke", async ({ page }) => {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Live-check-pass-1");
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByRole("heading", { name: /^Welcome,/ })).toBeVisible({ timeout: 90_000 });
 
   // external AI consent is required before Groq is used
   await page.getByRole("link", { name: "Settings" }).click();
@@ -22,7 +22,7 @@ test("live deployment smoke", async ({ page }) => {
   await page.getByRole("button", { name: "New project" }).first().click();
   await page.getByLabel("Name").fill("Live check");
   await page.getByRole("button", { name: "Save" }).click();
-  await page.getByRole("link", { name: "Live check" }).click();
+  await page.getByRole("link", { name: /Live check/ }).click();
   await page.getByLabel("Upload input").setInputFiles({ name: "calc.py", mimeType: "text/plain", buffer: Buffer.from(CODE) });
   await page.getByRole("treeitem").getByText("calc.py").click();
   await expect(page.getByText("sum(xs) / len(xs)").first()).toBeVisible({ timeout: 30_000 });
@@ -43,7 +43,8 @@ test("live deployment smoke", async ({ page }) => {
   await page.getByRole("button", { name: /Generate tests/ }).click();
   await expect(page.getByText("Generated, not executed")).toBeVisible({ timeout: 120_000 });
 
-  await page.getByRole("tab", { name: "Run" }).click();
+  await page.getByRole("button", { name: "Show bottom panel" }).click();
+  await page.getByRole("tab", { name: "Output" }).click();
   await expect(page.getByText("Execution is disabled")).toBeVisible();
 
   // persistence: fresh page load, history pages show the saved items

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PageBody, PageHeader } from "@/components/page";
-import { Badge, Card, EmptyState, ErrorState, Pagination, Spinner } from "@/components/ui";
+import { Badge, Card, EmptyState, ErrorState, Pagination, ListSkeleton } from "@/components/ui";
 import { TestView } from "@/features/test-view";
 import { useAsync } from "@/hooks/use-async";
 import { get } from "@/lib/api";
@@ -17,7 +17,7 @@ export default function TestsPage() {
   return (
     <PageBody>
       <PageHeader title="Test generation" description="Generate tests from a file in a project workspace (Tests tab). Generated tests are labelled until they are actually executed." />
-      {loading ? <Spinner /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
+      {loading ? <ListSkeleton /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
         <Card><EmptyState title="No generated tests yet" hint="Open a source file in a project and use the Tests tab." /></Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">

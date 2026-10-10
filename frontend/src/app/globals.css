@@ -3,45 +3,63 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 224 25% 12%;
-  --muted: 220 16% 95%;
-  --muted-foreground: 220 9% 40%;
+  --background: 220 20% 97.5%;
+  --foreground: 228 24% 12%;
+  --muted: 222 16% 94%;
+  --muted-foreground: 225 9% 40%;
   --card: 0 0% 100%;
-  --border: 220 14% 88%;
-  --primary: 243 75% 55%;
+  --elevated: 0 0% 100%;
+  --border: 222 14% 88%;
+  --primary: 252 72% 54%;
   --primary-foreground: 0 0% 100%;
-  --danger: 0 72% 45%;
-  --warn: 32 92% 38%;
-  --ok: 152 60% 30%;
+  --accent: 190 85% 32%;
+  --danger: 0 70% 46%;
+  --warn: 30 90% 36%;
+  --ok: 152 62% 29%;
 }
 .dark {
-  --background: 224 24% 8%;
-  --foreground: 220 20% 94%;
-  --muted: 223 20% 14%;
-  --muted-foreground: 220 10% 66%;
-  --card: 224 22% 11%;
-  --border: 223 16% 21%;
-  --primary: 243 90% 72%;
-  --primary-foreground: 224 24% 8%;
+  --background: 232 22% 7%;
+  --foreground: 220 18% 92%;
+  --muted: 232 16% 13%;
+  --muted-foreground: 225 10% 63%;
+  --card: 232 20% 10%;
+  --elevated: 232 18% 13%;
+  --border: 232 14% 19%;
+  --primary: 252 90% 70%;
+  --primary-foreground: 232 22% 8%;
+  --accent: 188 82% 56%;
   --danger: 0 84% 68%;
   --warn: 38 92% 60%;
-  --ok: 152 55% 55%;
+  --ok: 150 58% 52%;
 }
 * { border-color: hsl(var(--border)); }
 html, body { height: 100%; }
-body { background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
-.prose-ai { font-size: 0.875rem; line-height: 1.55; overflow-wrap: anywhere; }
+body {
+  background: hsl(var(--background)); color: hsl(var(--foreground));
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif; font-size: 14px;
+  -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01";
+}
+::selection { background: hsl(var(--primary) / 0.3); }
+:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 1px; border-radius: 4px; }
+* { scrollbar-width: thin; scrollbar-color: hsl(var(--border)) transparent; }
+button, a, summary { transition: background-color .12s, color .12s, border-color .12s, opacity .12s; }
+button:not(:disabled), summary { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton { position: relative; overflow: hidden; background: hsl(var(--muted)); border-radius: 6px; }
+.skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.05), transparent); animation: shimmer 1.4s infinite; }
+
+.prose-ai { font-size: 0.8125rem; line-height: 1.6; overflow-wrap: anywhere; }
 .prose-ai p { margin: 0.4rem 0; }
 .prose-ai ul { list-style: disc; padding-left: 1.2rem; margin: 0.4rem 0; }
 .prose-ai ol { list-style: decimal; padding-left: 1.2rem; margin: 0.4rem 0; }
 .prose-ai h1, .prose-ai h2, .prose-ai h3 { font-weight: 600; margin: 0.7rem 0 0.3rem; }
-.prose-ai code:not(pre code) { background: hsl(var(--muted)); padding: 0.05rem 0.3rem; border-radius: 0.25rem; font-size: 0.8rem; }
-.prose-ai pre { margin: 0; overflow-x: auto; background: hsl(var(--muted)); padding: 0.75rem; border-radius: 0 0 0.45rem 0.45rem; font-size: 0.78rem; }
-.prose-ai a { color: hsl(var(--primary)); text-decoration: underline; }
-.hljs-keyword, .hljs-selector-tag { color: hsl(var(--primary)); }
+.prose-ai code:not(pre code) { background: hsl(var(--muted)); padding: 0.05rem 0.3rem; border-radius: 0.25rem; font-family: var(--font-mono); font-size: 0.75rem; }
+.prose-ai pre { margin: 0; overflow-x: auto; background: hsl(var(--background)); padding: 0.75rem; font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.55; }
+.prose-ai a { color: hsl(var(--primary)); text-decoration: underline; text-underline-offset: 2px; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: hsl(var(--primary)); }
 .hljs-string, .hljs-attr { color: hsl(var(--ok)); }
 .hljs-comment { color: hsl(var(--muted-foreground)); font-style: italic; }
 .hljs-number, .hljs-literal { color: hsl(var(--warn)); }
-.hljs-title, .hljs-built_in { color: hsl(var(--danger)); }
+.hljs-title, .hljs-function { color: hsl(var(--accent)); }
+.hljs-params, .hljs-variable { color: hsl(var(--foreground)); }

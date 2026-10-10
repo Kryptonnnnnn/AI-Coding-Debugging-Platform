@@ -2,7 +2,7 @@
 import { Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageBody, PageHeader } from "@/components/page";
-import { Button, Card, EmptyState, ErrorState, Input, Pagination, Spinner } from "@/components/ui";
+import { Button, Card, EmptyState, ErrorState, Input, Pagination, ListSkeleton, useConfirm } from "@/components/ui";
 import { DebugReportView } from "@/features/debug-report-view";
 import { useAsync } from "@/hooks/use-async";
 import { del, get } from "@/lib/api";
@@ -14,6 +14,7 @@ type Item = DebugResponse & { summary: string };
 
 export default function DebugHistoryPage() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
@@ -27,7 +28,7 @@ export default function DebugHistoryPage() {
   }, [selected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function remove(id: string) {
-    if (!window.confirm("Delete this report?")) return;
+    if (!(await confirm({ title: "Delete this report?", tone: "danger", confirmLabel: "Delete", body: "The saved report is removed permanently. Files and patches are not affected." }))) return;
     try { await del(`/reports/${id}`); toast.ok("Report deleted"); if (selected === id) setSelected(null); reload(); } catch (e) { toast.error(e); }
   }
 
@@ -37,7 +38,7 @@ export default function DebugHistoryPage() {
       <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
         <div>
           <Input aria-label="Search reports" placeholder="Search reports…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className="mb-3" />
-          {loading ? <Spinner /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
+          {loading ? <ListSkeleton /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
             <Card><EmptyState title="No reports yet" hint="Open a project and run “Debug” on a file." /></Card>
           ) : (
             <Card className="divide-y">

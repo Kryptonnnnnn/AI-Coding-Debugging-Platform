@@ -1,8 +1,8 @@
 "use client";
-import { Plus, Search, Send, Trash2, Pencil } from "lucide-react";
+import { AlertCircle, Bot, Bug, FlaskConical, MessageSquareText, Pencil, Plus, RotateCw, Search, SearchCheck, Send, Sparkles, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Markdown } from "@/components/markdown";
-import { Badge, Button, EmptyState, Select, Spinner, Textarea } from "@/components/ui";
+import { Button, Dialog, Input, Select, Skeleton, Textarea, Tooltip, useConfirm } from "@/components/ui";
 import { ApiError, del, get, patch, post, streamPost } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import type { ContextSummary, Conversation, Message, Page, Patch } from "@/types/api";
@@ -10,6 +10,9 @@ import type { WorkspaceCtx } from "./types";
 
 export function ChatPanel({ ctx }: { ctx: WorkspaceCtx }) {
   const toast = useToast();
+  const confirm = useConfirm();
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
   const [convs, setConvs] = useState<Conversation[]>([]);
   const [q, setQ] = useState("");
   const [cid, setCid] = useState<string>("");
@@ -42,20 +45,21 @@ export function ChatPanel({ ctx }: { ctx: WorkspaceCtx }) {
     try { setMessages(await get<Message[]>(`/conversations/${id}/messages`)); } catch (e) { toast.error(e); } finally { setLoadingMsgs(false); }
   }
   async function newConv() { setCid(""); setMessages([]); }
-  async function rename() {
-    const title = window.prompt("Rename conversation", convs.find((c) => c.id === cid)?.title);
-    if (!title?.trim()) return;
-    try { await patch(`/conversations/${cid}`, { title: title.trim() }); void loadConvs(); } catch (e) { toast.error(e); }
+  async function rename(e?: React.FormEvent) {
+    e?.preventDefault();
+    const title = renaming?.trim();
+    if (!title) return;
+    try { await patch(`/conversations/${cid}`, { title }); setRenaming(null); void loadConvs(); } catch (err) { toast.error(err); }
   }
   async function remove() {
-    if (!window.confirm("Delete this conversation?")) return;
+    if (!(await confirm({ title: "Delete this conversation?", tone: "danger", confirmLabel: "Delete", body: "The messages are removed permanently." }))) return;
     try { await del(`/conversations/${cid}`); await newConv(); void loadConvs(); } catch (e) { toast.error(e); }
   }
 
-  async function send() {
-    const text = input.trim();
+  async function send(override?: string) {
+    const text = (override ?? input).trim();
     if (!text || busy) return;
-    setBusy(true); setInput(""); setStreaming("");
+    setBusy(true); setInput(""); setStreaming(""); setFailed(null);
     let id = cid;
     try {
       await ctx.saveNow();
@@ -73,9 +77,14 @@ export function ChatPanel({ ctx }: { ctx: WorkspaceCtx }) {
       await openConv(id);
       void loadConvs();
     } catch (e) {
-      if ((e as Error).name !== "AbortError") toast.error(e instanceof ApiError ? e : new Error("The request failed"));
+      if ((e as Error).name !== "AbortError") { setFailed(text); toast.error(e instanceof ApiError ? e : new Error("The request failed")); }
       if (id) await openConv(id).catch(() => {});
     } finally { setStreaming(""); setBusy(false); }
+  }
+
+  function runChip(kind: "explain" | "debug" | "review" | "tests") {
+    if (kind === "explain") void send("Explain what this code does, step by step.");
+    else ctx.showAssistant(kind);
   }
 
   async function proposeChange(code: string) {
@@ -96,25 +105,53 @@ export function ChatPanel({ ctx }: { ctx: WorkspaceCtx }) {
           <option value="">New conversation</option>
           {convs.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
         </Select>
-        <Button size="icon" variant="ghost" aria-label="New conversation" onClick={newConv}><Plus className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" aria-label="Rename conversation" disabled={!cid} onClick={rename}><Pencil className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" aria-label="Delete conversation" disabled={!cid} onClick={remove}><Trash2 className="h-4 w-4" /></Button>
+        <Tooltip label="New conversation"><Button size="icon" variant="ghost" aria-label="New conversation" onClick={newConv}><Plus className="h-3.5 w-3.5" /></Button></Tooltip>
+        <Tooltip label="Rename conversation"><Button size="icon" variant="ghost" aria-label="Rename conversation" disabled={!cid} onClick={() => setRenaming(convs.find((c) => c.id === cid)?.title ?? "")}><Pencil className="h-3.5 w-3.5" /></Button></Tooltip>
+        <Tooltip label="Delete conversation"><Button size="icon" variant="ghost" aria-label="Delete conversation" disabled={!cid} onClick={remove}><Trash2 className="h-3.5 w-3.5" /></Button></Tooltip>
       </div>
       <div className="flex items-center gap-1 border-b px-2 py-1"><Search className="h-3.5 w-3.5 text-muted-foreground" /><input aria-label="Search conversations" placeholder="Search conversations…" value={q} onChange={(e) => setQ(e.target.value)} className="h-7 flex-1 bg-transparent text-xs outline-none" /></div>
       <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3" aria-live="polite">
-        {loadingMsgs ? <Spinner /> : messages.length === 0 && !streaming ? (
-          <EmptyState title="Ask about your code" hint="Choose which files to share below. Only those files (and your selection, if enabled) are sent to the AI provider." />
-        ) : messages.map((m) => (
-          <div key={m.id} className={m.role === "user" ? "ml-6 rounded-lg bg-primary/10 p-2.5" : "mr-2"}>
-            <p className="mb-0.5 text-xs font-medium text-muted-foreground">{m.role === "user" ? "You" : "Assistant"}</p>
-            {m.role === "user" ? <p className="whitespace-pre-wrap text-sm">{m.content}</p> : <Markdown onInsertCode={proposeChange}>{m.content}</Markdown>}
-            {m.role === "user" && m.context_files.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Context sent: {m.context_files.map((f) => f.path).join(", ")}</p>}
+        {loadingMsgs ? <div className="space-y-2"><Skeleton className="h-10" /><Skeleton className="h-20" /></div> : messages.length === 0 && !streaming ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary"><Sparkles className="h-4 w-4" /></span>
+            <div><p className="text-[13px] font-medium">Ask about {ctx.file ? ctx.file.path : "your code"}</p><p className="mx-auto mt-0.5 max-w-64 text-xs text-muted-foreground">Only the files you tick under “Context” are sent to the AI provider.</p></div>
+            <div className="grid w-full max-w-72 gap-1.5">
+              {[
+                { icon: MessageSquareText, label: "Explain this code", kind: "explain" as const },
+                { icon: Bug, label: "Debug an error", kind: "debug" as const },
+                { icon: SearchCheck, label: "Review this code", kind: "review" as const },
+                { icon: FlaskConical, label: "Generate tests", kind: "tests" as const },
+              ].map((a) => (
+                <button key={a.label} onClick={() => runChip(a.kind)} disabled={!ctx.file} className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-left text-xs hover:border-primary/50 hover:bg-muted disabled:opacity-50">
+                  <a.icon className="h-3.5 w-3.5 text-primary" /> {a.label}
+                </button>
+              ))}
+            </div>
           </div>
+        ) : messages.map((m) => (
+          m.role === "user" ? (
+            <div key={m.id} className="ml-8 rounded-lg rounded-tr-sm bg-primary/15 px-3 py-2">
+              <p className="whitespace-pre-wrap text-[13px]">{m.content}</p>
+              {m.context_files.length > 0 && <p className="mt-1 text-2xs text-muted-foreground">Context sent: {m.context_files.map((f) => f.path).join(", ")}</p>}
+            </div>
+          ) : (
+            <div key={m.id} className="flex gap-2">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"><Bot className="h-3 w-3" /></span>
+              <div className="min-w-0 flex-1"><Markdown onInsertCode={proposeChange}>{m.content}</Markdown></div>
+            </div>
+          )
         ))}
-        {streaming && <div className="mr-2"><p className="mb-0.5 text-xs font-medium text-muted-foreground">Assistant</p><Markdown>{streaming}</Markdown></div>}
+        {streaming && <div className="flex gap-2"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted"><Bot className="h-3 w-3" /></span><div className="min-w-0 flex-1"><Markdown>{streaming}</Markdown></div></div>}
+        {busy && !streaming && <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> Thinking…</div>}
+        {failed && (
+          <div role="alert" className="flex items-center gap-2 rounded-md border border-danger/40 bg-danger/10 p-2 text-xs">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-danger" /><span className="flex-1">The request failed. Your message was not answered.</span>
+            <Button size="sm" variant="outline" onClick={() => void send(failed)}><RotateCw className="h-3 w-3" /> Retry</Button>
+          </div>
+        )}
         <div ref={bottom} />
       </div>
-      <div className="space-y-2 border-t p-2">
+      <div className="space-y-2 border-t bg-card/40 p-2">
         <details className="rounded-md border p-2 text-xs">
           <summary className="cursor-pointer font-medium">Context to send: {selected.size} file(s){useSelection && ctx.selection ? " + selection" : ""}{preview ? ` · ${preview.total_chars.toLocaleString()} chars` : ""}</summary>
           <div className="mt-2 max-h-28 space-y-1 overflow-auto">
@@ -129,11 +166,17 @@ export function ChatPanel({ ctx }: { ctx: WorkspaceCtx }) {
           <p className="mt-1 text-muted-foreground">The project file list (names only) is always included for context.</p>
         </details>
         <div className="flex gap-2">
-          <Textarea aria-label="Message" rows={2} value={input} placeholder="Ask about this code…" onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }} />
-          <Button aria-label="Send message" onClick={send} loading={busy} disabled={!input.trim()}><Send className="h-4 w-4" /></Button>
+          <Textarea aria-label="Message" rows={2} value={input} placeholder="Ask about this code…" onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }} className="resize-none" />
+          <Button aria-label="Send message" className="h-auto" onClick={() => void send()} loading={busy} disabled={!input.trim()}><Send className="h-3.5 w-3.5" /></Button>
         </div>
-        <p className="text-[11px] text-muted-foreground">Ctrl/⌘+Enter to send. <Badge>AI answers may be wrong</Badge></p>
+        <p className="text-2xs text-muted-foreground">Ctrl/⌘+Enter to send · AI answers can be wrong; verify before applying.</p>
       </div>
+      <Dialog open={renaming !== null} onClose={() => setRenaming(null)} title="Rename conversation">
+        <form onSubmit={rename} className="space-y-3">
+          <Input aria-label="Conversation title" autoFocus maxLength={200} value={renaming ?? ""} onChange={(e) => setRenaming(e.target.value)} />
+          <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setRenaming(null)}>Cancel</Button><Button type="submit">Rename</Button></div>
+        </form>
+      </Dialog>
     </div>
   );
 }

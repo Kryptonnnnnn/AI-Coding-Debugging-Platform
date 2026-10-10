@@ -12,6 +12,14 @@ Design principle: *deterministic tool findings and AI hypotheses are always labe
 | Analysis | `ast`, Ruff, Bandit, `node --check` (fixed-arg subprocesses) |
 | Sandbox | Separate provider abstraction; local Docker implementation, disabled by default |
 
+## Screenshots
+| | |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Workspace with debugging report](docs/screenshots/workspace-debug.png) |
+| ![Diff viewer](docs/screenshots/diff-viewer.png) | ![Code review](docs/screenshots/code-review.png) |
+
+Dark is the default theme; a light theme is one click away (`docs/screenshots/workspace-light.png`). Screenshots use the mock AI provider and a local test account.
+
 ## Features
 Auth & per-user isolation · projects (create/rename/archive/delete/search/paginate) · file tree, upload files or ZIP · Monaco editor with resizable panels, dark/light themes · debugging tasks (debug, explain error, root cause, fix, alternatives, line-by-line, edge cases, readability, optimize, refactor, repro) · reports saved + Markdown export · code review (quick/standard/deep, file or project manifest) · pytest / Vitest / Jest test generation with diff preview and save-to-project · patch create/apply/reject with conflict detection · file version history & restore · streaming chat with explicit context selection, preview, secret warnings, rename/search/delete · static analysis & secret scan page · dashboard with real usage stats · provider/model settings · sandbox status & execution results · retention cleanup job.
 

@@ -3,6 +3,11 @@ import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 
+export function storedTheme(): "light" | "dark" | "system" {
+  const t = typeof window === "undefined" ? null : window.localStorage.getItem("aicp.theme");
+  return t === "light" || t === "system" ? t : "dark";
+}
+
 export function applyTheme(theme: "light" | "dark" | "system") {
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
@@ -20,4 +25,4 @@ export function ThemeToggle() {
   );
 }
 
-export const themeInitScript = `try{var t=localStorage.getItem('aicp.theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d)}catch(e){}`;
+export const themeInitScript = `try{var t=localStorage.getItem('aicp.theme')||'dark';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d)}catch(e){}`;

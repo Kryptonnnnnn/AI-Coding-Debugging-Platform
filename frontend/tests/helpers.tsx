@@ -1,13 +1,14 @@
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
+import { ConfirmProvider } from "@/components/ui";
 import { AuthProvider } from "@/lib/auth";
 import { ToastProvider } from "@/lib/toast";
 
 export function renderApp(ui: ReactElement) {
   return render(
     <AuthProvider>
-      <ToastProvider>{ui}</ToastProvider>
+      <ToastProvider><ConfirmProvider>{ui}</ConfirmProvider></ToastProvider>
     </AuthProvider>,
   );
 }

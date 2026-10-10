@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PageBody, PageHeader } from "@/components/page";
-import { Badge, Card, EmptyState, ErrorState, Pagination, SeverityBadge, Spinner } from "@/components/ui";
+import { Badge, Card, EmptyState, ErrorState, Pagination, SeverityBadge, ListSkeleton } from "@/components/ui";
 import { useAsync } from "@/hooks/use-async";
 import { get } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
@@ -14,7 +14,7 @@ export default function ReviewsPage() {
   return (
     <PageBody>
       <PageHeader title="Code reviews" description="Start a review from a project workspace (Review tab). Results are saved here." />
-      {loading ? <Spinner /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
+      {loading ? <ListSkeleton /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
         <Card><EmptyState title="No reviews yet" hint="Open a project and run a quick, standard or deep review." action={<Link href="/projects" className="text-primary underline">Go to projects</Link>} /></Card>
       ) : (
         <Card className="divide-y">

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PageBody, PageHeader } from "@/components/page";
-import { applyTheme } from "@/components/theme";
+import { applyTheme, storedTheme } from "@/components/theme";
 import { Badge, Button, Card, ErrorState, Input, Label, Select, Spinner } from "@/components/ui";
 import { useAsync } from "@/hooks/use-async";
 import { get, put } from "@/lib/api";
@@ -14,7 +14,7 @@ export default function SettingsPage() {
   const providers = useAsync(() => get<{ providers: ProviderInfo[]; data_flow: string }>("/ai/providers"), []);
   const [form, setForm] = useState<Settings | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (settings.data) setForm(settings.data); }, [settings.data]);
+  useEffect(() => { if (settings.data) setForm({ ...settings.data, theme: storedTheme() }); }, [settings.data]);
 
   if (settings.loading || providers.loading) return <Spinner />;
   if (settings.error || !form) return <ErrorState error={settings.error ?? "No data"} retry={settings.reload} />;
@@ -34,6 +34,13 @@ export default function SettingsPage() {
   return (
     <PageBody>
       <PageHeader title="Settings" description="AI provider, privacy and appearance." />
+      <Card className="mb-4 flex max-w-2xl flex-wrap items-center gap-x-6 gap-y-2 p-3 text-[13px]">
+        <span className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">Active AI</span>
+        <span>Provider <b className="font-medium">{effective?.name ?? "server default"}</b></span>
+        <span>Model <b className="font-mono text-xs font-medium">{form.model || effective?.default_model || "default"}</b></span>
+        {effective && <Badge tone={effective.external ? "warn" : "ok"}>{effective.external ? "external service" : "stays local"}</Badge>}
+        <span className="text-2xs text-muted-foreground">API keys are configured on the server and never shown here.</span>
+      </Card>
       <form onSubmit={save} className="grid max-w-2xl gap-4">
         <Card className="space-y-3 p-4">
           <h2 className="font-medium">AI provider</h2>

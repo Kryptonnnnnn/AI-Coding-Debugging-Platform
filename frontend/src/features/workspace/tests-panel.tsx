@@ -1,7 +1,7 @@
 "use client";
 import { FlaskConical } from "lucide-react";
 import { useState } from "react";
-import { Button, EmptyState, Spinner } from "@/components/ui";
+import { Button, EmptyState, ListSkeleton } from "@/components/ui";
 import { TestView } from "@/features/test-view";
 import { post } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -25,7 +25,7 @@ export function TestsPanel({ ctx }: { ctx: WorkspaceCtx }) {
     <div className="h-full overflow-auto p-3">
       <Button className="w-full" onClick={run} loading={busy}><FlaskConical className="h-4 w-4" /> Generate tests for {ctx.file.path}</Button>
       <p className="mt-1 text-xs text-muted-foreground">Supported: Python (pytest), JavaScript/TypeScript (Vitest/Jest). Tests are not run unless the sandbox is enabled.</p>
-      <div className="mt-4 border-t pt-3">{busy ? <Spinner label="Generating" /> : test ? <TestView key={test.id} test={test} onSaved={ctx.refresh} /> : <EmptyState title="No tests generated yet" />}</div>
+      <div className="mt-4 border-t pt-3">{busy ? <ListSkeleton rows={3} /> : test ? <TestView key={test.id} test={test} onSaved={ctx.refresh} /> : <EmptyState title="No tests generated yet" />}</div>
     </div>
   );
 }

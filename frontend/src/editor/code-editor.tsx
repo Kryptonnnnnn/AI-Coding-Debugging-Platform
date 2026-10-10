@@ -7,10 +7,25 @@ import { monacoLanguage } from "@/lib/utils";
 const Monaco = dynamic(() => import("@monaco-editor/react").then((m) => m.default), { ssr: false, loading: () => <Spinner label="Loading editor" /> });
 const Diff = dynamic(() => import("@monaco-editor/react").then((m) => m.DiffEditor), { ssr: false, loading: () => <Spinner label="Loading diff" /> });
 
+type MonacoNS = Parameters<NonNullable<React.ComponentProps<typeof Monaco>["beforeMount"]>>[0];
+
+/** Themes that match the app palette instead of Monaco's default grey. */
+function defineThemes(m: MonacoNS) {
+  m.editor.defineTheme("aicp-dark", {
+    base: "vs-dark", inherit: true, rules: [],
+    colors: { "editor.background": "#0e0f16", "editorGutter.background": "#0e0f16", "editor.lineHighlightBackground": "#151723", "editorLineNumber.foreground": "#4b5066",
+      "editorLineNumber.activeForeground": "#9aa0b8", "editor.selectionBackground": "#4c3fa855", "editorWidget.background": "#151723", "diffEditor.insertedTextBackground": "#3fb97a22", "diffEditor.removedTextBackground": "#e5535322" },
+  });
+  m.editor.defineTheme("aicp-light", {
+    base: "vs", inherit: true, rules: [],
+    colors: { "editor.background": "#fbfbfd", "editorGutter.background": "#fbfbfd", "editor.lineHighlightBackground": "#f0f1f7" },
+  });
+}
+
 function useMonacoTheme() {
-  const [t, setT] = useState("light");
+  const [t, setT] = useState("aicp-light");
   useEffect(() => {
-    const read = () => setT(document.documentElement.classList.contains("dark") ? "vs-dark" : "light");
+    const read = () => setT(document.documentElement.classList.contains("dark") ? "aicp-dark" : "aicp-light");
     read();
     const obs = new MutationObserver(read);
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
@@ -31,6 +46,7 @@ export function CodeEditor({ value, language, onChange, readOnly, onSelection, p
       language={monacoLanguage(language)}
       value={value}
       theme={theme}
+      beforeMount={defineThemes}
       onChange={(v) => onChange?.(v ?? "")}
       onMount={(editor) => {
         editor.onDidChangeCursorSelection(() => {
@@ -39,7 +55,7 @@ export function CodeEditor({ value, language, onChange, readOnly, onSelection, p
           onSelection?.(sel && model && !sel.isEmpty() ? model.getValueInRange(sel) : "");
         });
       }}
-      options={{ readOnly, minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, automaticLayout: true, tabSize: 4, wordWrap: "on", ariaLabel: "Code editor" }}
+      options={{ readOnly, minimap: { enabled: false }, fontSize: 13, fontFamily: "var(--font-mono), ui-monospace, Menlo, monospace", fontLigatures: false, padding: { top: 8 }, renderLineHighlight: "line", scrollBeyondLastLine: false, automaticLayout: true, tabSize: 4, wordWrap: "on", ariaLabel: "Code editor" }}
     />
   );
 }
@@ -53,6 +69,7 @@ export function DiffView({ original, modified, language, sideBySide = true }: { 
       original={original}
       modified={modified}
       theme={theme}
+      beforeMount={defineThemes}
       options={{ readOnly: true, renderSideBySide: sideBySide, minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, automaticLayout: true }}
     />
   );

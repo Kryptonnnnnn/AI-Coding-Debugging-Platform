@@ -1,9 +1,9 @@
 "use client";
-import { Archive, ArchiveRestore, FolderKanban, Pencil, Plus, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, FolderKanban, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { PageBody, PageHeader } from "@/components/page";
-import { Button, Card, Dialog, EmptyState, ErrorState, Input, Label, Pagination, Spinner, Textarea } from "@/components/ui";
+import { PageBody, PageHeader, SearchBar } from "@/components/page";
+import { Badge, Button, Card, Dialog, EmptyState, ErrorState, Input, Label, ListSkeleton, Menu, MenuItem, MenuSeparator, Pagination, Textarea, useConfirm } from "@/components/ui";
 import { useAsync } from "@/hooks/use-async";
 import { del, get, patch, post } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -12,6 +12,7 @@ import type { Page, Project } from "@/types/api";
 
 export default function ProjectsPage() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [archived, setArchived] = useState(false);
@@ -42,42 +43,49 @@ export default function ProjectsPage() {
     try { await patch(`/projects/${p.id}`, { archived: !p.archived }); toast.ok(p.archived ? "Project restored" : "Project archived"); reload(); } catch (e) { toast.error(e); }
   }
   async function remove(p: Project) {
-    if (!window.confirm(`Delete “${p.name}” and all its files, versions and reports? This cannot be undone.`)) return;
+    if (!(await confirm({ title: `Delete “${p.name}”?`, tone: "danger", confirmLabel: "Delete project", body: "All its files, version history, reports and patches are deleted permanently." }))) return;
     try { await del(`/projects/${p.id}`); toast.ok("Project deleted"); reload(); } catch (e) { toast.error(e); }
   }
 
   return (
     <PageBody>
       <PageHeader title="My projects" description="Each project holds your files, version history and saved analyses."
-        actions={<Button onClick={() => open("new")}><Plus className="h-4 w-4" /> New project</Button>} />
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Input aria-label="Search projects" placeholder="Search projects…" className="max-w-xs" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
+        actions={<Button onClick={() => open("new")}><Plus className="h-3.5 w-3.5" /> New project</Button>} />
+      <SearchBar>
+        <div className="relative w-64 max-w-full"><Search className="pointer-events-none absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Search projects" placeholder="Search projects…" className="pl-7" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /></div>
         <Button variant={archived ? "primary" : "outline"} onClick={() => { setArchived(!archived); setPage(1); }}>
-          {archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />} {archived ? "Showing archived" : "Show archived"}
+          {archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />} {archived ? "Showing archived" : "Show archived"}
         </Button>
-      </div>
-      {loading ? <Spinner /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
-        <Card><EmptyState title={q ? "No matching projects" : archived ? "No archived projects" : "No projects yet"} hint={q ? "Try a different search." : "Create a project, then paste or upload code."}
-          action={!q && !archived ? <Button onClick={() => open("new")}>Create project</Button> : undefined} /></Card>
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.items.map((p) => (
-              <Card key={p.id} className="flex flex-col p-4">
-                <Link href={`/projects/${p.id}`} className="flex items-center gap-2 font-medium hover:text-primary"><FolderKanban className="h-4 w-4" /> {p.name}</Link>
-                <p className="mt-1 line-clamp-2 flex-1 text-sm text-muted-foreground">{p.description || "No description"}</p>
-                <p className="mt-2 text-xs text-muted-foreground">{p.file_count} files · updated {formatDate(p.updated_at)}</p>
-                <div className="mt-3 flex gap-1">
-                  <Button size="sm" variant="outline" aria-label={`Rename ${p.name}`} onClick={() => open(p)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
-                  <Button size="sm" variant="outline" aria-label={`${p.archived ? "Restore" : "Archive"} ${p.name}`} onClick={() => toggleArchive(p)}>{p.archived ? "Restore" : "Archive"}</Button>
-                  <Button size="sm" variant="ghost" aria-label={`Delete ${p.name}`} onClick={() => remove(p)}><Trash2 className="h-3.5 w-3.5 text-danger" /></Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-          <Pagination page={page} pageSize={12} total={data.total} onChange={setPage} />
-        </>
-      )}
+      </SearchBar>
+      <Card className="overflow-hidden">
+        {loading ? <ListSkeleton /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
+          <EmptyState icon={<FolderKanban className="h-4 w-4" />} title={q ? "No matching projects" : archived ? "No archived projects" : "No projects yet"} hint={q ? "Try a different search." : "Create a project, then paste or upload code."}
+            action={!q && !archived ? <Button onClick={() => open("new")}>Create project</Button> : undefined} />
+        ) : (
+          <>
+            <div className="hidden grid-cols-[1fr_6rem_10rem_2rem] gap-3 border-b bg-muted/30 px-3 py-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground sm:grid"><span>Name</span><span>Files</span><span>Updated</span><span /></div>
+            <ul className="divide-y">
+              {data.items.map((p) => (
+                <li key={p.id} className="grid grid-cols-[1fr_2rem] items-center gap-3 px-3 py-2.5 hover:bg-muted/30 sm:grid-cols-[1fr_6rem_10rem_2rem]">
+                  <Link href={`/projects/${p.id}`} className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary"><FolderKanban className="h-3.5 w-3.5" /></span>
+                    <span className="min-w-0"><span className="flex items-center gap-1.5 text-[13px] font-medium hover:text-primary">{p.name}{p.archived && <Badge>archived</Badge>}</span><span className="block truncate text-xs text-muted-foreground">{p.description || "No description"}</span></span>
+                  </Link>
+                  <span className="hidden text-xs tabular-nums sm:block">{p.file_count}</span>
+                  <span className="hidden text-xs text-muted-foreground sm:block">{formatDate(p.updated_at)}</span>
+                  <Menu label={`Actions for ${p.name}`} trigger={<MoreHorizontal className="m-1 h-4 w-4 text-muted-foreground" />}>
+                    <MenuItem icon={<Pencil className="h-3.5 w-3.5" />} onSelect={() => open(p)}>Rename / edit</MenuItem>
+                    <MenuItem icon={p.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />} onSelect={() => toggleArchive(p)}>{p.archived ? "Restore" : "Archive"}</MenuItem>
+                    <MenuSeparator />
+                    <MenuItem icon={<Trash2 className="h-3.5 w-3.5" />} danger onSelect={() => remove(p)}>Delete…</MenuItem>
+                  </Menu>
+                </li>
+              ))}
+            </ul>
+            <Pagination page={page} pageSize={12} total={data.total} onChange={setPage} />
+          </>
+        )}
+      </Card>
       <Dialog open={!!editing} onClose={() => setEditing(null)} title={editing === "new" ? "New project" : "Edit project"}>
         <form onSubmit={save} className="space-y-3">
           <div><Label htmlFor="pname">Name</Label><Input id="pname" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} autoFocus /></div>

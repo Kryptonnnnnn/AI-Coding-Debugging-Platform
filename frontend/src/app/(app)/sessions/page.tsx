@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PageBody, PageHeader } from "@/components/page";
-import { Badge, Card, EmptyState, ErrorState, Input, Pagination, Select, Spinner } from "@/components/ui";
+import { Badge, Card, EmptyState, ErrorState, Input, Pagination, Select, ListSkeleton } from "@/components/ui";
 import { useAsync } from "@/hooks/use-async";
 import { get } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
@@ -30,7 +30,7 @@ export default function SessionsPage() {
           <option value="">All types</option><option value="debug">Debugging</option><option value="review">Reviews</option><option value="tests">Tests</option>
         </Select>
       </div>
-      {loading ? <Spinner /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
+      {loading ? <ListSkeleton /> : error || !data ? <ErrorState error={error ?? "No data"} retry={reload} /> : data.items.length === 0 ? (
         <Card><EmptyState title="No sessions yet" hint="Run a debug analysis, review or test generation from a project workspace." /></Card>
       ) : (
         <Card className="divide-y">

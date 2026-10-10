@@ -1,7 +1,7 @@
 "use client";
 import { RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge, Button, Dialog, EmptyState, Spinner } from "@/components/ui";
+import { Badge, Button, Dialog, EmptyState, ListSkeleton, useConfirm } from "@/components/ui";
 import { UnifiedDiff } from "@/editor/code-editor";
 import { get, post } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -11,6 +11,7 @@ import type { WorkspaceCtx } from "./types";
 
 export function HistoryPanel({ ctx }: { ctx: WorkspaceCtx }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [versions, setVersions] = useState<Version[] | null>(null);
   const [view, setView] = useState<{ v: Version; content: string } | null>(null);
   const fid = ctx.file?.id;
@@ -26,22 +27,22 @@ export function HistoryPanel({ ctx }: { ctx: WorkspaceCtx }) {
     try { const full = await get<Version & { content: string }>(`/projects/${ctx.projectId}/files/${v.file_id}/versions/${v.id}`); setView({ v, content: full.content }); } catch (e) { toast.error(e); }
   }
   async function restore(v: Version) {
-    if (!window.confirm(`Restore version ${v.version_no}? The current content is kept in history.`)) return;
+    if (!(await confirm({ title: `Restore version ${v.version_no}?`, confirmLabel: "Restore", body: "The current content is kept in history, so this can be undone." }))) return;
     try { await post(`/projects/${ctx.projectId}/files/${v.file_id}/versions/${v.id}/restore`); toast.ok("Version restored"); setView(null); await ctx.reloadActive(); } catch (e) { toast.error(e); }
   }
-  if (!ctx.file) return <EmptyState title="Open a file to see its history" />;
-  if (!versions) return <Spinner />;
+  if (!ctx.file) return <EmptyState title="Open a file to see its history" hint="Every save, applied patch and restore creates a version." />;
+  if (!versions) return <ListSkeleton rows={3} />;
   const current = versions[0]?.sha256 === ctx.file.sha256 ? versions[0].id : null;
   return (
     <div className="h-full overflow-auto p-3">
       {versions.length === 0 ? <EmptyState title="No versions yet" /> : (
-        <ul className="divide-y rounded-md border">
+        <ul className="divide-y rounded-md border bg-card">
           {versions.map((v) => (
-            <li key={v.id} className="flex flex-wrap items-center gap-2 p-2 text-sm">
+            <li key={v.id} className="flex items-center gap-2 px-2.5 py-2 text-[13px]">
               <span className="font-medium">v{v.version_no}</span><Badge tone={v.reason === "patch_apply" ? "primary" : "neutral"}>{v.reason.replace("_", " ")}</Badge>
               {v.id === current && <Badge tone="ok">current</Badge>}
-              <span className="flex-1 text-xs text-muted-foreground">{formatDate(v.created_at)}</span>
-              <Button size="sm" variant="outline" onClick={() => open(v)}>View diff</Button>
+              <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground">{formatDate(v.created_at)}</span>
+              <Button size="sm" variant="ghost" onClick={() => open(v)}>Diff</Button>
               <Button size="sm" variant="outline" disabled={v.id === current} onClick={() => restore(v)}><RotateCcw className="h-3.5 w-3.5" /> Restore</Button>
             </li>
           ))}

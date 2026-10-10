@@ -1,20 +1,27 @@
 "use client";
-import { Save } from "lucide-react";
+import { FlaskConical, Save } from "lucide-react";
 import { useState } from "react";
-import { Badge, Button } from "@/components/ui";
-import { CopyButton } from "@/components/markdown";
+import { Badge, Button, CodeBlock, useConfirm } from "@/components/ui";
 import { UnifiedDiff } from "@/editor/code-editor";
 import { ApiError, post } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import type { GeneratedTest } from "@/types/api";
 
+function List({ title, items }: { title: string; items: string[] }) {
+  if (!items.length) return null;
+  return <section className="mt-3"><h3 className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3><ul className="list-disc space-y-0.5 pl-4">{items.map((b, i) => <li key={i}>{b}</li>)}</ul></section>;
+}
+
 export function TestView({ test, onSaved }: { test: GeneratedTest; onSaved?: () => void }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [saved, setSaved] = useState(test.saved);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"code" | "diff">("code");
   const d = test.details;
+  const lang = test.test_path.endsWith(".py") ? "python" : test.test_path.match(/\.(ts|tsx)$/) ? "typescript" : "javascript";
 
-  async function save(overwrite = false) {
+  async function save(overwrite = false): Promise<void> {
     setBusy(true);
     try {
       await post(`/tests/${test.id}/save`, { overwrite });
@@ -22,32 +29,34 @@ export function TestView({ test, onSaved }: { test: GeneratedTest; onSaved?: () 
       toast.ok(`Saved to ${test.test_path}`);
       onSaved?.();
     } catch (e) {
-      if (e instanceof ApiError && e.code === "duplicate_file" && window.confirm(`${test.test_path} already exists. Replace it? The old content stays in version history.`)) return save(true);
+      if (e instanceof ApiError && e.code === "duplicate_file") {
+        setBusy(false);
+        if (await confirm({ title: `Replace ${test.test_path}?`, confirmLabel: "Replace", body: "The existing file already exists. Its old content stays in version history." })) return save(true);
+        return;
+      }
       toast.error(e);
     } finally { setBusy(false); }
   }
 
   return (
-    <article aria-label="Generated tests" className="text-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="primary">{test.framework}</Badge>
-        <Badge tone="warn" title="No code was executed to produce these tests' results">{test.status_label}</Badge>
+    <article aria-label="Generated tests" className="text-[13px]">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge tone="accent"><FlaskConical className="h-3 w-3" /> {test.framework}</Badge>
+        <Badge tone="warn" title="These tests were generated but not run">{test.status_label}</Badge>
         {d.syntax_valid === true && <Badge tone="ok" title="Confirmed by the Python parser">syntax valid</Badge>}
         {d.syntax_valid === false && <Badge tone="danger">syntax error in generated code</Badge>}
         <Badge title="Coverage is only reported when a coverage tool measured it">coverage: {d.coverage}</Badge>
-        <code className="text-xs">{test.test_path}</code>
-        <div className="ml-auto flex gap-1">
-          <CopyButton text={test.code} label="Copy tests" />
-          <Button size="sm" onClick={() => save()} loading={busy} disabled={saved}><Save className="h-3.5 w-3.5" /> {saved ? "Saved to project" : "Save to project"}</Button>
-        </div>
+        <div className="ml-auto"><Button size="sm" onClick={() => save()} loading={busy} disabled={saved}><Save className="h-3.5 w-3.5" /> {saved ? "Saved to project" : "Save to project"}</Button></div>
       </div>
-      {test.description && <p className="mt-2">{test.description}</p>}
-      {d.behaviors.length > 0 && <><h3 className="mt-3 text-xs font-semibold uppercase text-muted-foreground">Behaviors tested</h3><ul className="list-disc pl-5">{d.behaviors.map((b, i) => <li key={i}>{b}</li>)}</ul></>}
-      {d.branches_covered.length > 0 && <><h3 className="mt-3 text-xs font-semibold uppercase text-muted-foreground">Branches targeted</h3><ul className="list-disc pl-5">{d.branches_covered.map((b, i) => <li key={i}>{b}</li>)}</ul></>}
-      {d.fixtures_mocks.length > 0 && <><h3 className="mt-3 text-xs font-semibold uppercase text-muted-foreground">Fixtures &amp; mocks</h3><ul className="list-disc pl-5">{d.fixtures_mocks.map((b, i) => <li key={i}>{b}</li>)}</ul></>}
-      {d.setup_instructions && <><h3 className="mt-3 text-xs font-semibold uppercase text-muted-foreground">Setup</h3><div className="flex items-center gap-2"><code className="flex-1 overflow-auto rounded bg-muted p-2 text-xs">{d.setup_instructions}</code><CopyButton text={d.setup_instructions} label="Copy command" /></div></>}
-      <h3 className="mt-3 text-xs font-semibold uppercase text-muted-foreground">Diff preview (new file vs. project)</h3>
-      <div className="mt-1 max-h-80 overflow-auto"><UnifiedDiff diff={test.diff} /></div>
+      {test.description && <p className="mt-2 text-muted-foreground">{test.description}</p>}
+      <div className="mt-3 flex gap-1 border-b" role="tablist" aria-label="Test view">
+        {(["code", "diff"] as const).map((t) => <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`px-2.5 py-1.5 text-xs font-medium ${tab === t ? "border-b-2 border-primary" : "text-muted-foreground"}`}>{t === "code" ? "Test code" : "Diff preview"}</button>)}
+      </div>
+      <div className="mt-2">{tab === "code" ? <CodeBlock code={test.code} language={lang} title={test.test_path} maxHeight={360} /> : <div className="max-h-96 overflow-auto"><UnifiedDiff diff={test.diff} /></div>}</div>
+      <List title="Behaviors tested" items={d.behaviors} />
+      <List title="Branches targeted" items={d.branches_covered} />
+      <List title="Fixtures & mocks" items={d.fixtures_mocks} />
+      {d.setup_instructions && <section className="mt-3"><h3 className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Setup</h3><CodeBlock code={d.setup_instructions} language="bash" title="command" maxHeight={80} /></section>}
     </article>
   );
 }
