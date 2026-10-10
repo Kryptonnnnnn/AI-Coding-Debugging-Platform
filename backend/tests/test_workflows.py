@@ -560,3 +560,14 @@ async def test_mock_provider_refused_in_production(monkeypatch):
     assert e.value.code == "provider_not_configured"
     monkeypatch.setattr(get_settings(), "allow_mock_provider", True)
     assert factory.get_provider("mock").name == "mock"
+
+
+def test_database_url_with_wrong_scheme_gives_clear_error(monkeypatch):
+    from app.core import config
+    monkeypatch.setenv("DATABASE_URL", "https://console.neon.tech/app/projects/x")
+    config.get_settings.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="must start with postgresql://"):
+            config.get_settings()
+    finally:
+        config.get_settings.cache_clear()

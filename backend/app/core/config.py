@@ -63,6 +63,12 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
+    scheme = s.database_url.split("://", 1)[0] if "://" in s.database_url else ""
+    if scheme.split("+")[0] not in ("postgres", "postgresql", "sqlite"):
+        raise RuntimeError(
+            "DATABASE_URL must start with postgresql:// (copy the connection string from Neon's Connect dialog, "
+            "not a dashboard link). Found scheme: " + (scheme or "none")
+        )
     if s.is_production:
         if s.secret_key.startswith("dev-only") or len(s.secret_key) < 32:
             raise RuntimeError("SECRET_KEY must be set to a random value of at least 32 characters in production")
