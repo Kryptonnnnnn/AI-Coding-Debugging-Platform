@@ -6,6 +6,7 @@ import { CopyButton, Markdown } from "@/components/markdown";
 import { DiffView, UnifiedDiff } from "@/editor/code-editor";
 import { cn } from "@/lib/utils";
 import type { Patch } from "@/types/api";
+import { PatchVerification } from "./patch-verification";
 import { usePatchActions } from "./use-patch";
 
 const STATUS_TONE = { applied: "ok", rejected: "danger", proposed: "warn" } as const;
@@ -51,6 +52,7 @@ export function PatchReview({ patch: initial, language, path, onResolved }: { pa
           <DiffView original={patch.original_content} modified={patch.proposed_content ?? ""} language={language} sideBySide={mode === "side"} />
         )}
       </div>
+      <div className="max-h-[40%] overflow-auto"><PatchVerification patchId={patch.id} initial={patch.verification} status={patch.status} /></div>
       <div className="flex flex-wrap items-center gap-2">
         {patch.status === "proposed" ? (
           <>

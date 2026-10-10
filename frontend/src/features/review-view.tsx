@@ -24,6 +24,7 @@ function FindingRow({ f, language }: { f: Finding; language: string }) {
             {confirmed
               ? <Badge tone="ok" title="Confirmed by a deterministic tool (parser, Ruff, Bandit or secret scanner)"><ShieldCheck className="h-3 w-3" /> tool-confirmed</Badge>
               : <Badge tone="primary" title="AI-generated hypothesis; no deterministic tool agrees"><Sparkles className="h-3 w-3" /> AI hypothesis</Badge>}
+            {!!f.merged_count && <Badge title="An AI finding (or several) that restated this one was merged into it">also reported by AI{f.merged_count > 1 ? ` ×${f.merged_count}` : ""}</Badge>}
             {f.file_path && !f.line_start && <span className="text-2xs text-muted-foreground">line not verified</span>}
           </span>
         </span>
@@ -54,6 +55,7 @@ export function ReviewView({ review }: { review: Review }) {
     <article aria-label="Code review" className="text-[13px]">
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge tone="accent">{review.depth} review</Badge>
+        {review.is_baseline && <Badge tone="primary">baseline{review.label ? `: ${review.label}` : ""}</Badge>}
         <span className="text-2xs text-muted-foreground">{review.provider} · {review.model} · {review.scope.length} file(s)</span>
       </div>
       <p className="mt-2">{review.summary}</p>

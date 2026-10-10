@@ -21,6 +21,7 @@ export function DebugPanel({ ctx }: { ctx: WorkspaceCtx }) {
   const [trace, setTrace] = useState("");
   const [expected, setExpected] = useState("");
   const [actual, setActual] = useState("");
+  const [related, setRelated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<DebugResponse | null>(null);
 
@@ -29,7 +30,7 @@ export function DebugPanel({ ctx }: { ctx: WorkspaceCtx }) {
     setBusy(true); setResult(null);
     try {
       const f = await ctx.saveNow();
-      setResult(await post<DebugResponse>("/debug", { project_id: ctx.projectId, file_id: (f ?? ctx.file).id, task, error_message: error, stack_trace: trace, expected, actual }));
+      setResult(await post<DebugResponse>("/debug", { project_id: ctx.projectId, file_id: (f ?? ctx.file).id, task, include_related: related, error_message: error, stack_trace: trace, expected, actual }));
     } catch (e) { toast.error(e); } finally { setBusy(false); }
   }
 
@@ -44,6 +45,7 @@ export function DebugPanel({ ctx }: { ctx: WorkspaceCtx }) {
           <div><Label htmlFor="exp">Expected behavior</Label><Textarea id="exp" rows={2} value={expected} onChange={(e) => setExpected(e.target.value)} /></div>
           <div><Label htmlFor="act">Actual behavior</Label><Textarea id="act" rows={2} value={actual} onChange={(e) => setActual(e.target.value)} /></div>
         </div>
+        <label className="flex items-start gap-2 text-xs"><input type="checkbox" className="mt-0.5" checked={related} onChange={(e) => setRelated(e.target.checked)} /><span>Include related files <span className="text-muted-foreground">(files this one imports or that import it, max 4; import analysis is static and not a full call graph)</span></span></label>
         <Button onClick={run} loading={busy} className="w-full"><Bug className="h-4 w-4" /> Analyze {ctx.file.path}</Button>
         <p className="text-xs text-muted-foreground">Sends this file (secrets redacted) and the details above to the configured AI provider. Nothing is changed until you apply a patch.</p>
       </div>

@@ -5,12 +5,13 @@ import { Markdown } from "@/components/markdown";
 import { Button, Dialog, Input, Select, Skeleton, Textarea, Tooltip, useConfirm } from "@/components/ui";
 import { ApiError, del, get, patch, post, streamPost } from "@/lib/api";
 import { useToast } from "@/lib/toast";
-import type { ContextSummary, Conversation, Message, Page, Patch } from "@/types/api";
+import type { ContextSummary, Conversation, Message, Page, Patch, Retrieval } from "@/types/api";
 import type { WorkspaceCtx } from "./types";
 
 export function ChatPanel({ ctx }: { ctx: WorkspaceCtx }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const [suggestion, setSuggestion] = useState<Retrieval | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [convs, setConvs] = useState<Conversation[]>([]);
@@ -80,6 +81,16 @@ export function ChatPanel({ ctx }: { ctx: WorkspaceCtx }) {
       if ((e as Error).name !== "AbortError") { setFailed(text); toast.error(e instanceof ApiError ? e : new Error("The request failed")); }
       if (id) await openConv(id).catch(() => {});
     } finally { setStreaming(""); setBusy(false); }
+  }
+
+  async function suggestContext() {
+    const q = input.trim();
+    if (q.length < 3) { toast.error(new Error("Type your question first, then suggest context.")); return; }
+    try {
+      const r = await post<Retrieval>(`/projects/${ctx.projectId}/retrieve`, { question: q });
+      setSuggestion(r);
+      setSelected((s) => new Set([...s, ...r.results.map((x) => x.file_id)]));
+    } catch (e) { toast.error(e); }
   }
 
   function runChip(kind: "explain" | "debug" | "review" | "tests") {
@@ -163,6 +174,11 @@ export function ChatPanel({ ctx }: { ctx: WorkspaceCtx }) {
           <label className="mt-2 flex items-center gap-1.5"><input type="checkbox" checked={useSelection} disabled={!ctx.selection} onChange={(e) => setUseSelection(e.target.checked)} /> Include editor selection{ctx.selection ? ` (${ctx.selection.length} chars)` : " (select text in the editor)"}</label>
           {preview?.secret_warnings.length ? <p role="alert" className="mt-2 text-danger">⚠ {preview.secret_warnings.length} possible secret(s) in selected files will be redacted before sending.</p> : null}
           {preview?.files.some((f) => f.truncated) && <p className="mt-1 text-warn">Some files are truncated to fit the context limit.</p>}
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t pt-2">
+            <Button size="sm" variant="outline" onClick={suggestContext} disabled={!input.trim()}><Search className="h-3 w-3" /> Suggest context from my question</Button>
+            {suggestion && <span className="text-muted-foreground">{suggestion.results.length ? `Ticked: ${suggestion.results.map((r) => r.path).join(", ")}` : "No relevant files found."}</span>}
+          </div>
+          {suggestion && <p className="mt-1 text-2xs text-muted-foreground">{suggestion.method}. Review the ticked files before sending.</p>}
           <p className="mt-1 text-muted-foreground">The project file list (names only) is always included for context.</p>
         </details>
         <div className="flex gap-2">

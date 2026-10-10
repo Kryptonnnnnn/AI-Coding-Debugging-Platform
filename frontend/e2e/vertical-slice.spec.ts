@@ -31,6 +31,7 @@ test("register → project → upload → debug → review diff → apply → hi
 
   // debug
   await page.getByRole("tab", { name: "Debug" }).click();
+  await page.getByRole("checkbox", { name: /Include related files/ }).check();
   await page.getByLabel("Error message").fill("ZeroDivisionError: division by zero");
   await page.getByRole("button", { name: /Analyze calc.py/ }).click();
   const report = page.getByRole("article", { name: "Debugging report" });
@@ -44,6 +45,12 @@ test("register → project → upload → debug → review diff → apply → hi
   const dialog = page.getByRole("dialog", { name: "Proposed change" });
   await dialog.getByRole("button", { name: "Unified text" }).click();
   await expect(dialog.getByLabel("Unified diff")).toContainText("if xs else 0");
+  // deterministic verification: parser/static checks, honest about test execution
+  await dialog.getByRole("button", { name: "Run checks" }).click();
+  await expect(dialog.getByText("proposed code parses")).toBeVisible();
+  await expect(dialog.getByText("tests not executed")).toBeVisible();
+  await dialog.getByRole("button", { name: /Suggest regression tests/ }).click();
+  await expect(dialog.getByText("Generated, not executed")).toBeVisible();
   await dialog.getByRole("button", { name: "Close dialog" }).click();
   await report.getByRole("button", { name: /Apply fix/ }).click();
   await page.getByRole("dialog", { name: "Apply this patch?" }).getByRole("button", { name: "Apply patch" }).click();
@@ -58,10 +65,27 @@ test("register → project → upload → debug → review diff → apply → hi
   await page.getByRole("dialog", { name: /Restore version 1/ }).getByRole("button", { name: "Restore" }).click();
   await expect(page.getByText("Version restored")).toBeVisible();
 
-  // review + tests + static analysis
+  // code intelligence panels (bottom)
+  await page.getByRole("tab", { name: "Related" }).click();
+  await expect(page.getByText(/not a semantic call graph/)).toBeVisible();
+  await page.getByRole("tab", { name: "Overview" }).click();
+  await expect(page.getByText("Languages (by size)")).toBeVisible();
+
+  // review twice: save the first as a baseline and compare
   await page.getByRole("tab", { name: "Review" }).click();
   await page.getByRole("button", { name: "Run review" }).click();
   await expect(page.getByRole("article", { name: "Code review" })).toBeVisible();
+  await page.getByRole("button", { name: /Save as baseline/ }).click();
+  await page.getByLabel("Label (optional)").fill("first pass");
+  await page.getByRole("button", { name: "Save baseline" }).click();
+  await expect(page.getByRole("button", { name: /Baseline: first pass/ })).toBeVisible();
+  await page.getByRole("button", { name: "Run review" }).click();
+  await expect(page.getByRole("button", { name: /Save as baseline/ })).toBeVisible();
+  await page.getByRole("button", { name: /Compare/ }).click();
+  const cmp = page.getByRole("dialog", { name: "Compare reviews" });
+  await cmp.getByRole("button", { name: "Compare" }).click();
+  await expect(cmp.getByText(/file\(s\) compared/)).toBeVisible();
+  await cmp.getByRole("button", { name: "Close dialog" }).click();
   await page.getByRole("tab", { name: "Tests" }).click();
   await page.getByRole("button", { name: /Generate tests/ }).click();
   await expect(page.getByText("Generated, not executed")).toBeVisible();
@@ -81,6 +105,17 @@ test("register → project → upload → debug → review diff → apply → hi
   await expect(page.getByText("Recent activity")).toBeVisible();
   await expect(page.getByTestId("stat-debug_reports")).toHaveText("1");
   await expect(page.getByTestId("stat-patches_applied")).toHaveText("1");
+
+  // self-service account deletion removes the account and its data
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: /Delete my account/ }).click();
+  await page.getByLabel("Password").fill("correct-horse-1");
+  await page.getByRole("button", { name: "Delete everything" }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("correct-horse-1");
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page.getByText("Incorrect email or password.")).toBeVisible();
 });
 
 test("unauthenticated users are redirected and bad logins show errors", async ({ page }) => {

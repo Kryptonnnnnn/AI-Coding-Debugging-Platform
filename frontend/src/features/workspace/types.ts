@@ -1,7 +1,7 @@
 import type { FileFull, FileMeta } from "@/types/api";
 
 export type AssistantTab = "chat" | "debug" | "review" | "tests";
-export type BottomTab = "analysis" | "history" | "output";
+export type BottomTab = "analysis" | "related" | "overview" | "history" | "output";
 
 export interface WorkspaceCtx {
   projectId: string;

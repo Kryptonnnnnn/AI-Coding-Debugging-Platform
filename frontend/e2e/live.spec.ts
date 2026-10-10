@@ -35,6 +35,20 @@ test("live deployment smoke", async ({ page }) => {
   await expect(report.getByText(/groq/)).toBeVisible();
   console.log("DEBUG SUMMARY:", await report.locator("h2").first().innerText());
 
+  // patch: verify, apply (with confirmation), then restore the previous version, all against production
+  await expect(report.getByRole("button", { name: "Apply fix" })).toBeVisible({ timeout: 30_000 });
+  await report.getByRole("button", { name: "View diff" }).click();
+  const diff = page.getByRole("dialog", { name: "Proposed change" });
+  await diff.getByRole("button", { name: "Run checks" }).click();
+  await expect(diff.getByText("tests not executed")).toBeVisible({ timeout: 30_000 });
+  await diff.getByRole("button", { name: "Close dialog" }).click();
+  await report.getByRole("button", { name: "Apply fix" }).click();
+  await page.getByRole("dialog", { name: "Apply this patch?" }).getByRole("button", { name: "Apply patch" }).click();
+  await expect(report.getByText("applied", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await report.getByRole("button", { name: "Restore previous version" }).click();
+  await page.getByRole("dialog", { name: /Restore version/ }).getByRole("button", { name: "Restore" }).click();
+  await expect(report.getByRole("button", { name: "Restored" })).toBeVisible({ timeout: 30_000 });
+
   await page.getByRole("tab", { name: "Review" }).click();
   await page.getByRole("button", { name: "Run review" }).click();
   await expect(page.getByRole("article", { name: "Code review" })).toBeVisible({ timeout: 120_000 });
@@ -56,4 +70,11 @@ test("live deployment smoke", async ({ page }) => {
   await expect(page.getByTestId("stat-debug_reports")).toHaveText("1");
   await expect(page.getByTestId("stat-reviews")).toHaveText("1");
   await expect(page.getByTestId("stat-generated_tests")).toHaveText("1");
+
+  // clean up: delete this throw-away account (and its data) through the product itself
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: /Delete my account/ }).click();
+  await page.getByLabel("Password").fill("Live-check-pass-1");
+  await page.getByRole("button", { name: "Delete everything" }).click();
+  await expect(page).toHaveURL(/\/login/, { timeout: 30_000 });
 });

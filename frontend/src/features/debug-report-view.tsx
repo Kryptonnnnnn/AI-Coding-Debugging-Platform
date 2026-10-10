@@ -139,7 +139,7 @@ export function DebugReportView({ data, onPatchChanged, filePath, patch }: { dat
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
         <Button size="sm" variant="outline" onClick={() => downloadText(`/reports/${data.id}/export.md`, `debug-report-${data.id.slice(0, 8)}.md`).catch(toast.error)}><Download className="h-3.5 w-3.5" /> Export Markdown</Button>
-        <p className="min-w-0 flex-1 text-2xs text-muted-foreground">{data.disclaimer}{data.meta && ` Tokens: ${data.meta.usage.prompt_tokens} in / ${data.meta.usage.completion_tokens} out (${data.meta.usage.source === "provider" ? "reported by provider" : "estimated"}). Files sent: ${data.meta.context.files.map((f) => f.path).join(", ") || "none"}.`}</p>
+        <p className="min-w-0 flex-1 text-2xs text-muted-foreground">{data.disclaimer}{data.meta && ` Tokens: ${data.meta.usage.prompt_tokens} in / ${data.meta.usage.completion_tokens} out (${data.meta.usage.source === "provider" ? "reported by provider" : "estimated"}). Files sent: ${data.meta.context.files.map((f) => f.path).join(", ") || "none"}.${data.meta.related_files?.length ? ` Related files included: ${data.meta.related_files.map((r) => `${r.path} (${r.relation})`).join(", ")}.` : ""}`}</p>
       </div>
     </article>
   );

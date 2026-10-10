@@ -2,6 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +10,7 @@ from app.api.deps import current_user, owned_file
 from app.core.db import get_db
 from app.core.errors import Conflict, NotFound
 from app.models.models import CodePatch, User
+from app.patching.verification import add_event, post_apply_check, verify_patch
 from app.patching.engine import apply_unified_diff, diff_stats, make_diff, validate_proposed
 from app.schemas.common import Page, PatchCreate, PatchFull, PatchOut
 from app.services import project_files as pf
@@ -81,6 +83,7 @@ async def apply_patch(patch_id: uuid.UUID, user: User = Depends(current_user), d
                        "Regenerate the fix or restore the file version it was based on.", code="patch_conflict")
     await pf.set_content(db, f, p.proposed_content, "patch_apply", p.id)
     p.status, p.resolved_at = "applied", datetime.now(UTC)
+    await post_apply_check(p, f)
     await db.commit()
     return _out(p, True)
 
@@ -91,5 +94,46 @@ async def reject_patch(patch_id: uuid.UUID, user: User = Depends(current_user), 
     if p.status != "proposed":
         raise Conflict(f"Patch is already {p.status}.", code="patch_not_pending")
     p.status, p.resolved_at = "rejected", datetime.now(UTC)
+    add_event(p, "rejected")
     await db.commit()
     return _out(p, True)
+
+
+class VerifyIn(BaseModel):
+    test_paths: list[str] = Field(default_factory=list, max_length=3)
+
+
+@router.post("/patches/{patch_id}/verify")
+async def verify(patch_id: uuid.UUID, body: VerifyIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Parser/static checks on the proposed content (never written), plus optional sandboxed pytest runs.
+    Execution is reported as `not_executed` whenever the sandbox is unavailable. A pass is never assumed."""
+    p = await _owned(db, user, patch_id)
+    f = await owned_file(db, user, p.file_id)
+    result = await verify_patch(db, p, f, body.test_paths)
+    await db.commit()
+    return result
+
+
+@router.get("/patches/{patch_id}/verification")
+async def get_verification(patch_id: uuid.UUID, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    p = await _owned(db, user, patch_id)
+    return p.verification or {}
+
+
+@router.post("/patches/{patch_id}/regression-tests", status_code=201)
+async def regression_tests(patch_id: uuid.UUID, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Suggests regression tests for a proposed patch (AI-generated, not executed)."""
+    from sqlalchemy import select as _sel
+    from app.api.tests import _out as test_out, _existing
+    from app.models.models import ProjectFile
+    from app.services.ai_gateway import resolve_provider
+    from app.services.testgen import generate_tests
+    p = await _owned(db, user, patch_id)
+    f = await owned_file(db, user, p.file_id)
+    has_jest = bool(await db.scalar(_sel(ProjectFile.id).where(ProjectFile.project_id == p.project_id, ProjectFile.path == "package.json",
+                                                                 ProjectFile.content.like("%jest%"))))
+    provider = await resolve_provider(db, user)
+    rec, meta = await generate_tests(db, user, provider, f, None, has_jest, patch=p)
+    add_event(p, "regression_tests_suggested", test_id=str(rec.id))
+    await db.commit()
+    return test_out(rec, await _existing(db, rec), meta)

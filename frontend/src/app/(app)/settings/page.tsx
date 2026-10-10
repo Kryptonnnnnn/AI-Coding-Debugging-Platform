@@ -1,15 +1,22 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageBody, PageHeader } from "@/components/page";
 import { applyTheme, storedTheme } from "@/components/theme";
-import { Badge, Button, Card, ErrorState, Input, Label, Select, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Dialog, ErrorState, Input, Label, Select, Spinner } from "@/components/ui";
 import { useAsync } from "@/hooks/use-async";
-import { get, put } from "@/lib/api";
+import { api, get, put } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
 import type { ProviderInfo, Settings } from "@/types/api";
 
 export default function SettingsPage() {
   const toast = useToast();
+  const router = useRouter();
+  const { logout } = useAuth();
+  const [delOpen, setDelOpen] = useState(false);
+  const [delPw, setDelPw] = useState("");
+  const [delBusy, setDelBusy] = useState(false);
   const settings = useAsync(() => get<Settings>("/settings"), []);
   const providers = useAsync(() => get<{ providers: ProviderInfo[]; data_flow: string }>("/ai/providers"), []);
   const [form, setForm] = useState<Settings | null>(null);
@@ -20,6 +27,16 @@ export default function SettingsPage() {
   if (settings.error || !form) return <ErrorState error={settings.error ?? "No data"} retry={settings.reload} />;
   const chosen = providers.data?.providers.find((p) => p.name === form.provider);
   const effective = chosen ?? providers.data?.providers.find((p) => p.is_server_default);
+
+  async function deleteAccount(e: React.FormEvent) {
+    e.preventDefault();
+    setDelBusy(true);
+    try {
+      await api("/auth/me", { method: "DELETE", body: { password: delPw } });
+      logout();
+      router.replace("/login");
+    } catch (err) { toast.error(err); } finally { setDelBusy(false); }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -65,6 +82,17 @@ export default function SettingsPage() {
         </Card>
         <div><Button type="submit" loading={busy}>Save settings</Button></div>
       </form>
+      <Card className="mt-6 max-w-2xl border-danger/40 p-4">
+        <h2 className="text-sm font-semibold text-danger">Delete account</h2>
+        <p className="mt-1 text-[13px] text-muted-foreground">Permanently deletes your account and everything it owns: projects, files, version history, reports, reviews, chats and usage records. This cannot be undone.</p>
+        <Button variant="danger" className="mt-3" onClick={() => { setDelPw(""); setDelOpen(true); }}>Delete my account…</Button>
+      </Card>
+      <Dialog open={delOpen} onClose={() => setDelOpen(false)} title="Delete your account?" description="Enter your password to confirm.">
+        <form onSubmit={deleteAccount} className="space-y-3">
+          <div><Label htmlFor="del-pw">Password</Label><Input id="del-pw" type="password" required autoFocus autoComplete="current-password" value={delPw} onChange={(e) => setDelPw(e.target.value)} /></div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setDelOpen(false)}>Cancel</Button><Button type="submit" variant="danger" loading={delBusy}>Delete everything</Button></div>
+        </form>
+      </Dialog>
     </PageBody>
   );
 }

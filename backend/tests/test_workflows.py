@@ -152,12 +152,16 @@ async def test_code_review_persistence_and_tool_confirmation(client, auth, proje
     tool = [f for f in rev["findings"] if f["source"] == "tool"]
     ai = [f for f in rev["findings"] if f["source"] == "ai"]
     assert tool and all(f["tool_confirmed"] for f in tool)
-    ev = next(f for f in ai if "eval" in f["title"])
-    assert ev["line_start"] == 5 and ev["tool_confirmed"] is True  # bandit B307 on the same line
+    # AI findings that restate a tool finding (same lines, same subject) are folded into the deterministic one
+    assert not any("eval" in f["title"].lower() for f in ai) and not any("None" in f["title"] for f in ai)
+    bandit = next(f for f in tool if f["rule_id"] == "B307")
+    assert bandit["line_start"] == 5 and bandit["merged_count"] == 1
+    ruff = next(f for f in tool if f["rule_id"] == "E711")
+    assert ruff["line_start"] == 4 and ruff["merged_count"] == 1
+    assert any("duplicate finding(s) were merged" in lim for lim in rev["limitations"])
     todo = next(f for f in ai if "TODO" in f["title"])
     assert todo["line_start"] == 11 and todo["tool_confirmed"] is False  # AI-only: no tool agrees
-    none_cmp = next(f for f in ai if "None" in f["title"])
-    assert none_cmp["line_start"] == 4 and none_cmp["tool_confirmed"] is True  # ruff E711 on the same line
+    assert all(f["fingerprint"] for f in rev["findings"])
     got = await client.get(f"/reviews/{rev['id']}", headers=auth)
     assert len(got.json()["findings"]) == len(rev["findings"])
     assert (await client.get("/reviews", headers=auth)).json()["items"][0]["counts"]

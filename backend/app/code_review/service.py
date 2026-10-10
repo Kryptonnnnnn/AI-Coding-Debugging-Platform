@@ -10,6 +10,7 @@ from app.schemas.ai_outputs import ReviewOutput
 from app.services.ai_gateway import record_usage, system_message
 from app.services.context import SYSTEM_RULES, build_context, is_auto_excluded
 from app.services.languages import SUPPORTED
+from app.code_review.dedupe import fingerprint, merge_duplicates
 from app.static_analysis.service import analyze
 
 DEPTH = {  # (max files, context chars, instruction)
@@ -54,25 +55,26 @@ async def run_review(db: AsyncSession, user: User, provider: AIProvider, project
     out, comps = await run_structured(provider, messages, ReviewOutput, max_tokens=3000)
 
     rows: list[CodeReviewFinding] = []
-    tool_hits: dict[str, list[int]] = {}
     tools_run: list[dict] = []
     for f in files:
         if f.language in ("python", "javascript"):
             res = await analyze(f.path, f.content, f.language)
             tools_run += [{"file": f.path, **t.model_dump()} for t in res.tools]
             for tf in res.findings:
-                tool_hits.setdefault(f.path, []).append(tf.line or -999)
                 rows.append(CodeReviewFinding(
                     severity=tf.severity, category="static-analysis", file_path=f.path, line_start=tf.line, line_end=tf.line,
                     title=f"{tf.tool}: {tf.rule_id}", description=tf.message, remediation=tf.remediation,
-                    source="tool", tool_confirmed=True, rule_id=tf.rule_id))
+                    source="tool", tool_confirmed=True, rule_id=tf.rule_id,
+                    fingerprint=fingerprint(f.path, tf.rule_id or tf.tool, tf.message)))
         for w in scan_secrets(f.content):
             rows.append(CodeReviewFinding(
                 severity="high", category="secrets", file_path=f.path, line_start=w.line, line_end=w.line,
                 title=f"Possible secret: {w.kind}", description="A value resembling a credential is committed in the source (value withheld).",
                 remediation="Remove it, rotate the credential, and load it from the environment.", source="tool",
-                tool_confirmed=True, rule_id="secret-scan"))
+                tool_confirmed=True, rule_id="secret-scan",
+                fingerprint=fingerprint(f.path, "secret-scan", w.kind, str(w.line))))
 
+    ai_rows: list[CodeReviewFinding] = []
     for fd in out.findings:
         sev = fd.severity if fd.severity in SEVERITIES else "info"
         start = end = None
@@ -81,15 +83,19 @@ async def run_review(db: AsyncSession, user: User, provider: AIProvider, project
         if f and quote and quote in f.content:
             start = f.content.count("\n", 0, f.content.index(quote)) + 1
             end = start + quote.count("\n")
-        confirmed = start is not None and any(start <= ln <= (end or start) for ln in tool_hits.get(fd.file_path, []))
-        rows.append(CodeReviewFinding(
+        ai_rows.append(CodeReviewFinding(
             severity=sev, category=fd.category[:40], file_path=fd.file_path if f else "", line_start=start, line_end=end,
             title=fd.title[:290], description=fd.description, evidence=quote if start else "", remediation=fd.remediation,
-            source="ai", tool_confirmed=confirmed))
+            source="ai", tool_confirmed=False,
+            fingerprint=fingerprint(fd.file_path if f else "", fd.category, fd.title or fd.description, quote if start else "")))
 
+    # Duplicate detection: an AI finding that restates a tool finding (same lines, same subject) is folded into the
+    # tool finding, which is deterministic and therefore the stronger record. AI-vs-AI repeats are folded too.
+    rows, ai_kept, merged = merge_duplicates(rows, ai_rows)
+    rows += ai_kept
     order = {s: i for i, s in enumerate(["critical", "high", "medium", "low", "info"])}
     rows.sort(key=lambda r: order.get(r.severity, 9))
-    limitations = list(out.limitations) + [
+    limitations = list(out.limitations) + ([f"{merged} duplicate finding(s) were merged (an AI finding that restates a tool finding or another AI finding)."] if merged else []) + [
         "This review is not exhaustive and does not guarantee that all vulnerabilities were found.",
         "AI findings are hypotheses; only findings marked tool-confirmed are backed by a deterministic tool.",
     ] + [f"Skipped {s['path']}: {s['reason']}" for s in skipped] + [
