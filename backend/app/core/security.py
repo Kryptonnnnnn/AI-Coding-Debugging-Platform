@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -34,3 +35,12 @@ def decode_token(token: str) -> uuid.UUID | None:
         return uuid.UUID(data["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         return None
+
+
+async def hash_password_async(pw: str) -> str:
+    """Argon2 is CPU-heavy (seconds on small hosts); run it off the event loop so other requests keep flowing."""
+    return await asyncio.to_thread(hash_password, pw)
+
+
+async def verify_password_async(pw: str, hashed: str) -> bool:
+    return await asyncio.to_thread(verify_password, pw, hashed)

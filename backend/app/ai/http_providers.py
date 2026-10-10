@@ -28,6 +28,9 @@ def _raise_for_status(resp: httpx.Response, provider: str) -> None:
         raise ProviderError(f"{provider} rejected the credentials. Check the API key configuration.")
     if resp.status_code == 413 or (resp.status_code == 400 and "context" in resp.text.lower()):
         raise ProviderTokenLimit(f"Request exceeds the {provider} model's token limit. Select fewer files.")
+    if resp.status_code == 404:
+        raise ProviderError(f"{provider} returned 404: the configured model was not found or has been retired. "
+                            f"Set a valid model (GROQ_MODEL / OLLAMA_MODEL or in Settings).")
     raise ProviderError(f"{provider} returned HTTP {resp.status_code}.")
 
 

@@ -45,7 +45,7 @@ Without Postgres you can set `DATABASE_URL=sqlite+aiosqlite:///./dev.db` for a q
 ### AI providers
 - **mock** (default): deterministic, offline; recognises a few patterns (e.g. `sum(x)/len(x)`, `== None`) so every workflow is demoable.
 - **Ollama**: `ollama pull llama3.1`, then `AI_PROVIDER=ollama OLLAMA_MODEL=llama3.1`. Code stays on your machine.
-- **Groq**: create a key at console.groq.com, set `AI_PROVIDER=groq GROQ_API_KEY=...`. In the app, Settings → acknowledge the data-flow notice (selected code is sent to Groq, secrets redacted first). Free-tier limits change; recent third-party sources list ~30 requests/min and ~1,000 requests/day for `llama-3.3-70b-versatile` — check your Groq console. 429s are surfaced to the UI.
+- **Groq**: create a key at console.groq.com, set `AI_PROVIDER=groq GROQ_API_KEY=...`. In the app, Settings → acknowledge the data-flow notice (selected code is sent to Groq, secrets redacted first). Free-tier limits change; model availability and limits change (the earlier default `llama-3.3-70b-versatile` was retired) — list models with `curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"` and set `GROQ_MODEL` accordingly; check your Groq console for quotas. 429s are surfaced to the UI.
 
 Users can pick provider/model in Settings; the server default comes from env.
 
